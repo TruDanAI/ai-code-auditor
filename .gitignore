@@ -1,0 +1,19 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Environment / secrets
+.env
+*.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# RAG / data artifacts
+*.index
+*.pkl
