@@ -42,7 +42,7 @@ Tag: 🟢 [Học trong lộ trình] · 🔵 [Dài hạn — đào sâu sau CV]
 ### A1. Input & Ingestion — Router định dạng đầu vào 🔵 [Dài hạn]
 
 - **🎯 Quyết định cốt lõi:** input thật (PDF/docx/excel/link/ảnh) đi parser nào, khi nào cần OCR.
-- **⚖️ Bảng lựa chọn:** PDF text → pymupdf · PDF scan/ảnh → OCR (PaddleOCR/Tesseract) · docx → python-docx · xlsx → pandas (KHÔNG embed thẳng) · link → trafilatura.
+- **⚖️ Bảng lựa chọn:** PDF text → pymupdf · PDF scan/ảnh tiếng Việt → **VietOCR** (PaddleOCR lo *detection*, không nhận dạng VN gốc) · docx → python-docx · xlsx → pandas (KHÔNG embed thẳng) · link → trafilatura.
 - **🚩 AI/vibe coding hay sai:** AI mặc định OCR mọi PDF (chậm 50×, bẩn text born-digital); AI embed thẳng bảng Excel (vô nghĩa, như #1234≈#5678).
 - **🛑 Khi nào KHÔNG cần:** input đã là text thuần (repo code) → bỏ qua cả tầng này.
 - **🔍 Câu tự soi:** "File này born-digital hay scan — AI có check trước khi OCR không?"
@@ -101,6 +101,34 @@ Tag: 🟢 [Học trong lộ trình] · 🔵 [Dài hạn — đào sâu sau CV]
 - **🛑 Khi nào KHÔNG cần:** luồng 1 bước hoặc biết trước → KHÔNG agent. Đây là cạm bẫy over-engineer phổ biến nhất.
 - **🔍 Câu tự soi:** "Bài này có thật sự cần agent quyết định động, hay AI đang vẽ agent cho oai?"; "Có max_steps chặn vòng lặp chưa?"
 - **🔗 Đào sâu:** roadmap Tuần 3 (agent.py ReAct) + Tuần 5 (LangGraph) + dsa-cho-ky-su-ai.md mục 8 (stack/queue).
+
+### A8. Giao thức chọn & làm mới model (VN-first) 🟢 [xuyên A1/A3/A6]
+
+> **Triết lý:** đừng nhớ "model nào tốt nhất" (hôm nay đúng, 3 tháng sau sai) — **dựng cái cân** để LUÔN biết model nào tốt nhất *cho dữ liệu tiếng Việt của mày*, và đổi được trong 1 dòng.
+
+- **🎯 Quyết định cốt lõi:** model (embedding/LLM/OCR) chọn thế nào để **không lỗi thời** khi model mới ra liên tục.
+- **⚖️ Giao thức 3 mảnh:**
+  1. **Config-swap:** tên model nằm ở **config**, không hardcode trong logic → đổi model = sửa 1 dòng, không đụng pipeline.
+  2. **Golden set thường trực (tiếng Việt):** model mới → cắm vào → đo **precision@k + cost + latency trên DỮ LIỆU CỦA MÀY** → số liệu quyết, KHÔNG tin leaderboard chung.
+  3. **Trigger làm mới:** chỉ đo lại khi *(có model mới đáng chú ý / giá đổi / precision chững)* — không đo mỗi ngày.
+- **✅ Checklist swap-and-measure** (mỗi lần thử model mới):
+  - [ ] Đổi đúng 1 biến config (model name), không đụng pipeline.
+  - [ ] Chạy lại golden set → ghi precision@k.
+  - [ ] Đo cost/1k token + latency/query.
+  - [ ] So model hiện tại: tốt hơn **đủ để bù** chi phí/độ nặng không?
+  - [ ] Ghi số vào bảng → đây là **số liệu vàng cho CV**.
+- **🗺️ Bảng model VN-first (cập nhật 6/2026 — vẫn phải tự đo lại):**
+
+| Tầng | VN ưu tiên | Thay thế / EN | Ghi chú |
+|---|---|---|---|
+| Embedding | Qwen3-Embedding (RoPE, mạnh đa ngữ) · halong-embedding · vietnamese-bi-encoder (bkai) | multilingual-e5 · BGE-M3 | Đo trên **VN-MTEB**; model lớn + RoPE thắng |
+| LLM (sinh) | Qwen3 30B / Next-80B MoE (dẫn SEA-HELM VN) · PhoGPT-4B · Vistral/Sailor (self-host) | Gemini Flash (API, rẻ, tiếng Việt khá) | Dual-stack: API frontier cho tiện + Qwen self-host cho chủ quyền dữ liệu |
+| OCR | **VietOCR** (transformer, dấu thanh) | PaddleOCR (chỉ *detection*, không nhận dạng VN gốc) · VLM (Gemini/Qwen-VL) cho layout rối | Combo phổ biến: PaddleOCR detect + VietOCR recognize |
+
+- **🚩 AI/vibe coding hay sai:** AI hardcode tên model khắp code → đổi model là cực hình; AI chọn model theo **bảng xếp hạng tiếng Anh** rồi áp cho tiếng Việt (MTEB EN ≠ VN-MTEB); AI nói "PaddleOCR đọc tiếng Việt" — sai, cần VietOCR.
+- **🛑 Khi nào KHÔNG cần:** prototype 1 lần / dữ liệu không đổi → 1 model cố định, đừng dựng cả giao thức (kiềm chế).
+- **🔍 Câu tự soi:** "Đổi model này tốn mấy dòng — nhiều thì model đang bị hardcode."; "Có số liệu trên DỮ LIỆU TIẾNG VIỆT của mình chưa, hay đang tin leaderboard chung?"
+- **🔗 Đào sâu:** A1 (OCR) · A3 (embedding) · A6 (model & cost) + roadmap Tuần 2 Ngày 9-10 (golden set + bảng so model). Benchmark tham khảo: **VN-MTEB · SEA-HELM · vmlu.ai** (tra lại định kỳ).
 
 ---
 

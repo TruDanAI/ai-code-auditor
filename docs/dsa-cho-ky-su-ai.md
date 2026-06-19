@@ -283,6 +283,40 @@
 
 ---
 
+## 11. KHÁI NIỆM CẦU NỐI — Hiểu "vì sao" ở tầng sâu
+
+*Hai khái niệm CS không phải cấu trúc dữ liệu, nhưng giải thích "vì sao" ở tầng sâu hơn — giúp mày không hoảng khi gặp hành vi lạ và biết bản chất của caching.*
+
+### 11a. Amortized Analysis — Vì sao `list.append` là O(1) dù đôi khi chậm
+
+*   **Vấn đề nếu không có:**
+    Mày thấy `list.append` thường tức thì, nhưng **thỉnh thoảng 1 lần lại khựng**. Nếu chỉ nhìn cái lần khựng đó, mày tưởng append là O(n) và hoảng — rồi đi tối ưu nhầm chỗ.
+
+*   **Nguyên lý & logic:**
+    Python list (dynamic array) đặt phần tử trong vùng nhớ liên tục có sức chứa cố định. Khi **đầy**, nó cấp một vùng mới **lớn gấp đôi** rồi **copy toàn bộ sang** — lần append đó tốn **O(n)**. Nhưng vì mỗi lần phình là gấp đôi, các lần copy thưa dần theo cấp số nhân → **chia đều chi phí ra toàn bộ N lần append, trung bình mỗi lần vẫn là O(1)**. Đây gọi là **amortized O(1)** (O(1) khấu hao): không phải "luôn O(1)", mà là "trung bình O(1) qua nhiều thao tác". Đo thật trong RAG: khi mày `all_chunks.append(...)` hàng nghìn chunk, vài lần khựng là do realloc — hoàn toàn bình thường.
+
+*   **Giới hạn / khi nào KHÔNG dùng:**
+    Amortized che cái **đỉnh chi phí tức thời** (worst-case một lần vẫn O(n)). Với hệ **real-time cần độ trễ ổn định** (không chịu được spike), phải để ý lần realloc đó — lúc này nên `list` cấp sẵn dung lượng hoặc dùng cấu trúc khác. Với RAG batch bình thường thì amortized O(1) là đủ, đừng lo.
+
+### 11b. Time–Space Tradeoff — Bản chất của caching & index
+
+*   **Vấn đề nếu không có:**
+    Mỗi lần cần embedding của một câu, mày encode lại bằng model → **chậm và tốn tiền**. Mỗi lần cần tra vector gần nhất, mày quét hết → chậm. Không có khái niệm này, mày không thấy được **cái nút vặn** giữa nhanh và nhẹ.
+
+*   **Nguyên lý & logic:**
+    Time–Space tradeoff = **đánh đổi bộ nhớ lấy tốc độ** (hoặc ngược lại). Đây là một trong những đánh đổi nền tảng nhất của CS, và **mọi thứ "tăng tốc" mày dùng đều là nó**:
+    - **Cache embedding** (dict `text → vector`): tốn thêm RAM giữ vector, đổi lại khỏi gọi model → nhanh + rẻ.
+    - **Index** (B-Tree của DB, HNSW của vector DB): tốn thêm bộ nhớ + thời gian dựng index, đổi lại truy vấn O(log n) thay vì O(n).
+    - **Precompute** (tính sẵn ma trận embedding lúc ingest): tốn chỗ lưu, đổi lại lúc query khỏi tính lại.
+    Nhận ra đây là **cùng một nút vặn** giúp mày phán đoán: "muốn nhanh hơn → chịu tốn bộ nhớ/lưu trữ hơn; muốn nhẹ hơn → chịu chậm hơn".
+
+*   **Giới hạn / khi nào KHÔNG dùng:**
+    Đổi sang tốn bộ nhớ KHÔNG miễn phí: cache/index cần **RAM/đĩa** và phải **giữ đồng bộ** (dữ liệu đổi thì cache/index cũ thành sai — bug "stale cache" kinh điển). Khi dữ liệu **thay đổi liên tục** hoặc **bộ nhớ là nút thắt**, cache/index có thể hại nhiều hơn lợi. Đừng cache/index khi tính lại còn rẻ hơn chi phí giữ đồng bộ.
+
+> **🔗 Nối với tài liệu khác:** 11b chính là "vì sao" đứng sau mục B1/B3 của [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) (chọn vector DB, observability) — mọi quyết định infra đều là một lần vặn nút time–space.
+
+---
+
 ## TỔNG KẾT — Bản đồ "bài toán → DSA" để nhớ nhanh
 
 | Bài toán mày gặp trong AI | DSA giải nó | Big-O |

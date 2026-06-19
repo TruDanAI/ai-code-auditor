@@ -21,7 +21,7 @@ graph TD
 *   **Giải pháp:** 
     *   *Stuffing (Nhồi thẳng):* Đọc toàn bộ code nhét vào Prompt nếu nằm trong giới hạn context window của LLM.
     *   *Basic RAG:* Cắt nhỏ file (chunking) thô bằng ký tự cố định, lưu trữ tạm thời trong memory hoặc SQLite thô, tìm kiếm bằng khoảng cách vector (Cosine Similarity) cơ bản.
-*   **Chi phí:** Cực kỳ rẻ. Sử dụng gói miễn phí của Google AI Studio hoặc GPT-4o-mini với chi phí chưa tới $0.05 cho mỗi 100 lần truy vấn.
+*   **Chi phí:** Cực kỳ rẻ. Sử dụng gói miễn phí của Google AI Studio hoặc model rẻ (Gemini 3.5 Flash-Lite / DeepSeek V3.2) với chi phí chưa tới $0.05 cho mỗi 100 lần truy vấn.
 *   **Khi nào nâng cấp lên Cấp độ 2:** Khi codebase bắt đầu lớn hơn (trên 20 file), việc nhét toàn bộ vào context làm tăng chi phí LLM call phi mã hoặc khi vector search bị bỏ sót các từ khóa đặc thù (mã đơn hàng, tên hàm cụ thể).
 
 ### Cấp độ 2: Hybrid Search & Persistent Vector DB (ChromaDB / SQLite)
@@ -74,7 +74,7 @@ Bảng dưới đây đã được **xác minh lại ngày 17/6/2026** (nguồn 
 *   **Đặc điểm:** Không có hạ tầng phần cứng mạnh, muốn triển khai nhanh, chấp nhận dữ liệu (mã nguồn) đi qua API của bên thứ ba (OpenAI, Google) miễn là có cam kết bảo mật cấp API (không dùng dữ liệu để train model).
 *   **Chiến lược tối ưu chi phí (Cost-Saving):**
     1.  **Dùng Context Caching của Gemini 3.5 Flash:** Thay vì embed codebase nhiều lần, hãy cache toàn bộ codebase lên Gemini Server. Chi phí lưu trữ cache chỉ khoảng $0.015/1M tokens/giờ, trong khi chi phí đọc cache rẻ hơn 4 lần so với input thông thường.
-    2.  **Hybrid Routing (Định tuyến thông minh):** Sử dụng **GPT-4o-mini** hoặc **Gemini 3.5 Flash** để chạy Agent tìm kiếm và phân tích sơ bộ. Chỉ khi phát hiện lỗi bảo mật nghiêm trọng cần viết báo cáo chi tiết hoặc đề xuất code vá lỗi mới gọi đến **Claude 3.5 Sonnet**.
+    2.  **Hybrid Routing (Định tuyến thông minh):** Sử dụng **Gemini 3.5 Flash** hoặc **DeepSeek V3.2** (rẻ) để chạy Agent tìm kiếm và phân tích sơ bộ. Chỉ khi phát hiện lỗi bảo mật nghiêm trọng cần viết báo cáo chi tiết hoặc đề xuất code vá lỗi mới gọi đến **Claude Sonnet 4.6** / **GPT-5.4**.
     3.  **Hạn chế Max Steps:** Đặt giới hạn cứng cho vòng lặp ReAct Agent (tối đa 5-6 bước) để tránh tình trạng Agent bị lặp vô hạn gây tiêu tốn token.
 
 ### Nhóm 2: Doanh nghiệp cần On-premise (Bảo mật tuyệt đối)
@@ -84,7 +84,8 @@ Bảng dưới đây đã được **xác minh lại ngày 17/6/2026** (nguồn 
     *   *Mô hình 70B (Hermes 3 70B):* Máy chủ chuyên dụng có RAM 64GB+, 2 card GPU RTX 3090/4090 chạy song song (hoặc Apple Mac Studio M2/M3 Ultra 128GB Unified Memory).
 *   **Kiến trúc đề xuất:**
     *   Chạy mô hình thông qua **Ollama** hoặc **vLLM** làm Local Inference Server.
-    *   Embedding model local nên dùng **Qwen3-Embedding** (đứng #1 bảng MTEB đa ngôn ngữ 2026, ~70.6 điểm, open-weight, context 32K, rất mạnh cho phi-Anh ngữ → tốt cho tiếng Việt). **BAAI/bge-m3** vẫn là phương án nhẹ/ổn định nhưng đã bị Qwen3 vượt. *(Xác minh 17/6/2026 — nguồn: [MTEB leaderboard](https://awesomeagents.ai/leaderboards/embedding-model-leaderboard-mteb-april-2026/), [Mixpeek best embedding models](https://mixpeek.com/curated-lists/best-embedding-models)).*
+    *   Embedding model local nên dùng **Qwen3-Embedding** (dẫn đầu đa ngôn ngữ 2026, RoPE + model lớn, open-weight, context 32K, rất mạnh cho phi-Anh ngữ → tốt cho tiếng Việt). **BAAI/bge-m3** vẫn nhẹ/ổn định nhưng đã bị Qwen3 vượt. VN chuyên biệt đáng đo: **halong-embedding, vietnamese-bi-encoder (bkai)**. *(Cập nhật 6/2026 — giờ đã có benchmark VN riêng **VN-MTEB**; đừng tin MTEB tiếng Anh, đo trên golden set VN của mình — xem [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục A8).*
+    *   LLM sinh (self-host tiếng Việt): **Qwen3 30B/Next-80B MoE** dẫn đầu SEA-HELM tiếng Việt (không model phương Tây nào lọt top-5 open <200B); thay thế **PhoGPT-4B, Vistral, Sailor**. OCR tiếng Việt: **VietOCR** (PaddleOCR chỉ lo detection, không nhận dạng VN gốc).
     *   Dùng **SQLite** làm Database và **ChromaDB** chạy local trong Docker Container.
     *   *Đánh giá:* Chi phí đầu tư ban đầu cho phần cứng khá cao, nhưng chi phí vận hành sau đó gần như bằng 0 và đảm bảo an toàn dữ liệu 100%.
 
@@ -108,7 +109,7 @@ Client ---> OpenRouter API ---> Chọn (Claude / GPT-4 / Hermes 3 / Llama 3.1)
 | **Độ trễ (Latency) & Ổn định** | **Rất tốt** (kết nối trực tiếp đến hạ tầng của Google, ít qua trung gian). | Trung bình (phụ thuộc vào nhà cung cấp thứ ba mà OpenRouter định tuyến tới). |
 | **Tính năng tối ưu RAG** | **Xuất sắc** (Hỗ trợ Context Caching gốc lên tới 1-2M tokens, Batch API giảm 50% giá). | Hạn chế (Chưa hỗ trợ Context Caching đồng đều cho tất cả các mô hình). |
 | **Bảo mật & Privacy** | Cam kết bảo mật dữ liệu ở Paid Tier (không dùng dữ liệu khách hàng để train). | Dữ liệu đi qua OpenRouter và nhà cung cấp endpoint cuối (cần đọc kỹ điều khoản từng model). |
-| **Trade-off cốt lõi** | **Chọn Gemini API khi:** Dự án lớn, cần context window khổng lồ, RAG tài liệu cực nặng, muốn tối ưu chi phí bằng Context Caching.<br>**Chọn OpenRouter khi:** Muốn tránh bị khóa chặt vào một nhà cung cấp (Vendor Lock-in), muốn linh hoạt đổi model (ví dụ: chạy Agent bằng GPT-4o-mini nhưng sinh câu trả lời bằng Claude 3.5 Sonnet) chỉ với một cổng kết nối duy nhất. |
+| **Trade-off cốt lõi** | **Chọn Gemini API khi:** Dự án lớn, cần context window khổng lồ, RAG tài liệu cực nặng, muốn tối ưu chi phí bằng Context Caching.<br>**Chọn OpenRouter khi:** Muốn tránh bị khóa chặt vào một nhà cung cấp (Vendor Lock-in), muốn linh hoạt đổi model (ví dụ: chạy Agent bằng Gemini Flash/DeepSeek V3.2 nhưng sinh câu trả lời bằng Claude Sonnet 4.6) chỉ với một cổng kết nối duy nhất. |
 
 ---
 
