@@ -52,7 +52,7 @@ Bảng dưới đây đã được **xác minh lại ngày 17/6/2026** (nguồn 
 | Tên mô hình | Hãng | Input /1M | Output /1M | Vai trò tối ưu | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **DeepSeek V3.2** | DeepSeek | **$0.14** | **$0.28** | Rẻ nhất cho vòng lặp Agent; reasoning ngang model đắt gấp ~10× | ⚠️ Dữ liệu đi qua API nhà cung cấp TQ — cân nhắc privacy khi audit mã nguồn |
-| **Gemini 2.0 Flash** | Google | **$0.10** | **$0.40** | Gemini rẻ nhất — agent loop tiết kiệm | Context ~1M |
+| **Gemini 2.5 Flash-Lite** | Google | **$0.10** | **$0.40** | Gemini rẻ nhất — agent loop tiết kiệm (thay `gemini-2.0-flash` đã shutdown 1/6/2026) | Context ~1M |
 | **Mistral Small** | Mistral | $0.10 | $0.30 | Parse/format/phân loại text nhẹ | Có bản open-weight tự host |
 | **Gemini 3.1 Flash-Lite** | Google | $0.25 | $1.50 | Agent loop cần context lớn mà vẫn rẻ | Preview (3/2026) |
 | **Gemini 2.5 Flash** | Google | $0.30 | $2.50 | Cân bằng cho RAG codebase | Context ~1M |
@@ -60,7 +60,7 @@ Bảng dưới đây đã được **xác minh lại ngày 17/6/2026** (nguồn 
 | **GPT-5.4** | OpenAI | $2.50 | $15.00 | Node phân tích/suy luận mạnh cho production | Tỉ lệ năng lực/chi phí tốt |
 | **Claude Sonnet 4.6** | Anthropic | $3.00 | $15.00 | Node cuối: viết phân tích bảo mật chuyên sâu, giải thích code phức tạp | Thay thế "Claude 3.5 Sonnet" đã lỗi thời |
 
-> **Cách đọc bảng (rẻ + hiệu quả):** Vòng lặp ReAct gọi LLM nhiều lần → chọn nhóm trên cùng (DeepSeek V3.2 / Gemini 2.0 Flash / Flash-Lite). Bước viết báo cáo bảo mật cuối (ít lần, cần chất lượng) → mới gọi GPT-5.4 / Claude Sonnet 4.6. Đây gọi là **Hybrid Routing** — và là một điểm cộng lớn khi nói trong phỏng vấn.
+> **Cách đọc bảng (rẻ + hiệu quả):** Vòng lặp ReAct gọi LLM nhiều lần → chọn nhóm trên cùng (DeepSeek V3.2 / Gemini 2.5 Flash-Lite). Bước viết báo cáo bảo mật cuối (ít lần, cần chất lượng) → mới gọi GPT-5.4 / Claude Sonnet 4.6. Đây gọi là **Hybrid Routing** — và là một điểm cộng lớn khi nói trong phỏng vấn.
 >
 > *Lưu ý: giá xác minh 17/6/2026; context window là giá trị tham khảo (Gemini Flash ~1M, Claude ~200k), chưa soát lại từng dòng. Giá LLM đổi nhanh — kiểm tra lại trước khi đưa vào báo cáo/CV.*
 >
