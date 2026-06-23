@@ -5,6 +5,8 @@
 > **Cách dùng:** Khi roadmap dẫn tới một chủ đề (qua box 🧭 Góc Architect), mở đúng mục ở đây. Đọc khối 🚩 và 🔍 trước — đó là phần trị vibe coding. Lý thuyết sâu nằm ở NOTES.md/roadmap/dsa-cho-ky-su-ai.md (khối 🔗 trỏ tới), tài liệu này KHÔNG lặp lại.
 >
 > **Là living document:** mục 🟢 học trong 2 tháng roadmap; mục 🔵 đọc-để-biết giờ, đào sâu sau CV theo dự án thật.
+>
+> **🆕 Track Beyond-RAG (22/6/2026):** kiến trúc cấp Enterprise (GraphRAG, RAPTOR, Speculative RAG, vLLM/on-prem, audit swarm) gom ở [beyond-rag-phase-2.md](beyond-rag-phase-2.md). Phần rẻ-ăn-điểm đã rải vào **A4** (CRAG), **B1** (RAG Triad), **B2** (constrained decoding/input guard) + roadmap section "Tích Hợp Beyond-RAG (Tầng 1)".
 
 ---
 
@@ -70,6 +72,7 @@ Tag: 🟢 [Học trong lộ trình] · 🔵 [Dài hạn — đào sâu sau CV]
 
 - **🎯 Quyết định cốt lõi:** tìm bằng vector, keyword, hay cả hai; có cần rerank không; top_k bao nhiêu.
 - **⚖️ Bảng lựa chọn:** Vector (semantic) — *chọn khi* hỏi theo ý, khác chữ cùng nghĩa · Keyword/BM25 — *chọn khi* exact-match (ID, tên hàm) · Hybrid — *chọn khi* sản phẩm thật (gộp cả hai) · + Rerank — *chọn khi* precision quan trọng, chịu thêm latency.
+- **➕ CRAG (Corrective RAG):** thêm một *retrieval evaluator* chấm độ tin chunk (đúng/sai/mơ hồ) → sai thì fallback (web/keyword/hỏi lại). *Chọn khi* retrieval hay trả rác (vd recall thấp như baseline Ngày 6); KHÔNG cần khi retrieval đã chuẩn. 🔗 [beyond-rag-phase-2.md](beyond-rag-phase-2.md) mục 1+3 + roadmap Tầng 1 Món 2.
 - **🚩 AI/vibe coding hay sai:** AI mặc định pure vector cho mọi thứ → chết với exact-match (mã đơn, tên hàm); AI trả thẳng top-k cosine, quên rerank → precision thấp không rõ lý do; AI set top_k tùy hứng (3? 10?) không gắn context budget.
 - **🛑 Khi nào KHÔNG cần:** vài trăm chunk → brute-force O(n) đủ, đừng vác vector DB/ANN sớm.
 - **🔍 Câu tự soi:** "Câu exact-match (số/ID/tên hàm) có lọt vào nhánh vector không — nếu có là sai."; "top_k này dựa trên cái gì, hay AI bịa số?"
@@ -137,7 +140,7 @@ Tag: 🟢 [Học trong lộ trình] · 🔵 [Dài hạn — đào sâu sau CV]
 ### B1. Evaluation & Observability — Đo thay vì đoán 🟢
 
 - **🎯 Quyết định cốt lõi:** đo chất lượng RAG/agent bằng metric nào (precision@k, latency, cost, hallucination rate) và log gì.
-- **⚖️ Bảng lựa chọn:** Golden set + precision@k — *chọn khi* đo chất lượng retrieval · Log token/latency/tool mỗi call — *chọn khi* cần biết chi phí/điểm nghẽn · Test off-topic — *chọn khi* kiểm rào chống bịa.
+- **⚖️ Bảng lựa chọn:** Golden set + precision@k — *chọn khi* đo chất lượng retrieval · Log token/latency/tool mỗi call — *chọn khi* cần biết chi phí/điểm nghẽn · Test off-topic — *chọn khi* kiểm rào chống bịa · **RAG Triad (LLM-as-judge)** — *chọn khi* cần đo tự động 3 trục Context Relevance / Groundedness / Answer Relevance vượt khỏi precision@k · **Trace tool (LangSmith/Phoenix)** — *chọn khi* agent nhiều bước, cần soi span/loop.
 - **🚩 AI/vibe coding hay sai:** AI khoe "cải thiện" không có số liệu (golden set); AI quên log token/latency → không biết chi phí thật; AI không test câu off-topic → rào chống bịa chưa được kiểm.
 - **🛑 Khi nào KHÔNG cần:** demo 1 lần dùng rồi bỏ → khỏi dựng eval harness.
 - **🔍 Câu tự soi:** "Thay đổi này có số đo trước/sau không, hay chỉ 'cảm giác tốt hơn'?"; "1 query tốn bao nhiêu token/tiền — có log không?"
@@ -146,7 +149,7 @@ Tag: 🟢 [Học trong lộ trình] · 🔵 [Dài hạn — đào sâu sau CV]
 ### B2. Guardrails, Safety & Security 🔵 [Dài hạn]
 
 - **🎯 Quyết định cốt lõi:** chặn prompt injection, lọc PII, và cái gì TUYỆT ĐỐI không gửi cho LLM.
-- **⚖️ Bảng lựa chọn:** Validate output (schema/regex) · Lọc PII/secret trước khi gửi · System prompt chống injection · Allowlist tool cho agent.
+- **⚖️ Bảng lựa chọn:** Validate output (schema/regex) · **Constrained decoding** (ép JSON Schema *lúc sinh* — function calling/Outlines, chắc hơn validate sau) · Lọc PII/secret trước khi gửi · System prompt chống injection · **Input guard** (model phân loại nhỏ vd Llama-Guard quét prompt độc ngay cổng) · Allowlist tool cho agent.
 - **🚩 AI/vibe coding hay sai:** AI nhét nguyên secret/API key vào prompt; AI tin tưởng input người dùng → injection "bỏ qua lệnh trên"; AI cho agent quyền chạy shell không sandbox.
 - **🛑 Khi nào KHÔNG cần:** prototype nội bộ, dữ liệu không nhạy cảm → guardrail tối thiểu.
 - **🔍 Câu tự soi:** "Prompt này có chứa secret/PII không nên rời máy không?"; "Input người dùng có thể ghi đè system prompt không?"

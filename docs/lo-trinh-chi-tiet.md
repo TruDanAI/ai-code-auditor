@@ -18,12 +18,15 @@ Sau khi rà soát kỹ thuật tính đến 16/6/2026, có **4 điểm lỗi th�
 |---|--------|--------|----------|
 | 1 | **`google-generativeai` SDK đã bị khai tử** (30/11/2025). File `mini_rag.py` vẫn dùng `import google.generativeai as genai` + `genai.configure()` | 🔴 Chặn | Chuyển sang `google-genai` SDK mới. Dùng `client = genai.Client()` thay `genai.configure()` |
 | 2 | **Model `gemini-1.5-flash` thuộc thế hệ cũ**. Gemini 2.0 đã shutdown 1/6/2026. Model hiện tại là `gemini-3.5-flash` | 🔴 Chặn | Đổi model name trong code sang `gemini-3.5-flash` |
-| 3 | **`all-MiniLM-L6-v2` vẫn chạy được** nhưng đã bị vượt xa về chất lượng. State-of-the-art 2026 là Qwen3-Embedding, BGE-M3 | 🟡 Không chặn | Giữ MiniLM cho tuần 1 (nhẹ, chạy CPU, mục đích học). Upgrade lên model tốt hơn ở tuần 2 khi đo precision |
+| 3 | **`all-MiniLM-L6-v2` vẫn chạy được** nhưng đã bị vượt xa về chất lượng. SOTA 2026: **Qwen3-Embedding** (đa ngữ, RoPE) dẫn đầu; VN chuyên biệt có **halong-embedding, vietnamese-bi-encoder (bkai)**, BGE-M3. Đã có benchmark VN riêng **VN-MTEB** | 🟡 Không chặn | Giữ MiniLM cho tuần 1 (nhẹ, CPU, học). Tuần 2 upgrade + **đo trên golden set tiếng Việt của mình** (không tin leaderboard chung) — xem [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục A8 |
 | 4 | **IBM Coursera đã có 10 khóa** (thêm khóa 9: MCP — Model Context Protocol, khóa 10: Capstone). Lộ trình cũ chỉ tính 8 khóa | 🟡 Điều chỉnh | Với 7 ngày trial, chỉ học 4–5 khóa quan trọng nhất, bỏ multimodal + capstone |
 
 > **CẬP NHẬT 17/6/2026 (đã kiểm tra code thật):** `mini_rag.py` **ĐÃ được cập nhật sẵn** sang SDK `google-genai` mới (`from google import genai` + `genai.Client()` + `model="gemini-3.5-flash"`, xem dòng 241-253). Vì vậy buổi chiều Ngày 1 **không cần viết lại SDK** nữa — thay bằng **đọc-hiểu + xác minh chạy được** (so sánh SDK cũ vs mới). Môi trường `venv` cũng đã cài đủ `numpy`, `tiktoken`, `sentence-transformers`, `google-genai`; mắt xích duy nhất còn thiếu là biến môi trường `GEMINI_API_KEY` (set bằng `$env:GEMINI_API_KEY = "..."`).
 >
-> ✅ **[Đã xác minh 17/6/2026]** Bảng model trong `ban-do-cong-nghe-chi-phi.md` (mục II) đã được cập nhật: "Claude 3.5 Sonnet" → **Claude Sonnet 4.6** ($3/$15); "GPT-4o-mini" → dòng GPT nay là **GPT-5.4** ($2.50/$15); thêm **DeepSeek V3.2** ($0.14/$0.28 — rẻ nhất). **Lưu ý chi phí quan trọng:** `mini_rag.py` đang dùng `gemini-3.5-flash` — model *mới nhất* (19/5/2026) nhưng *đắt nhất họ Flash* ($1.50/$9.00). Cho **học** thì ổn; nhưng sang **vòng lặp agent** (Tuần 3+, gọi LLM nhiều lần) nên đổi sang `gemini-2.0-flash` ($0.10/$0.40) hoặc `gemini-3.1-flash-lite` để tiết kiệm.
+> ✅ **[Đã xác minh 17/6/2026]** Bảng model trong `ban-do-cong-nghe-chi-phi.md` (mục II) đã được cập nhật: "Claude 3.5 Sonnet" → **Claude Sonnet 4.6** ($3/$15); "GPT-4o-mini" → dòng GPT nay là **GPT-5.4** ($2.50/$15); thêm **DeepSeek V3.2** ($0.14/$0.28 — rẻ nhất). **Lưu ý chi phí quan trọng:** `mini_rag.py` đang dùng `gemini-3.5-flash` — model *mới nhất* (19/5/2026) nhưng *đắt nhất họ Flash* ($1.50/$9.00). Cho **học** thì ổn; nhưng sang **vòng lặp agent** (Tuần 3+, gọi LLM nhiều lần) nên đổi sang `gemini-2.5-flash-lite` ($0.10/$0.40) hoặc **DeepSeek V3.2** ($0.14/$0.28) để tiết kiệm (⚠️ `gemini-2.0-flash` đã shutdown 1/6/2026, KHÔNG dùng được nữa).
+
+> [!NOTE]
+> **🆕 Track Beyond-RAG (bổ sung 22/6/2026):** sau khi rà bài nghiên cứu *"Beyond RAG"*, đã chắt **7 món Tầng 1** (rẻ, ăn điểm CV) gấp vào lộ trình — xem section cuối file [🆕 Tích Hợp Beyond-RAG (Tầng 1)](#-tích-hợp-beyond-rag-tầng-1). Phần nặng cấp Enterprise (GraphRAG/RAPTOR/vLLM) để ở doc riêng [beyond-rag-phase-2.md](beyond-rag-phase-2.md) — track *sau CV*.
 
 ---
 
@@ -37,11 +40,17 @@ venv\Scripts\activate        # Windows
 # 2. Cài thư viện (ĐÃ CẬP NHẬT cho 6/2026)
 pip install sentence-transformers numpy google-genai tiktoken
 
-# 3. Set API key (PowerShell)
+# 3. Auth — CHỌN 1 backend (PowerShell). call_gemini trong mini_rag.py là dual-mode:
+#   (A) AI Studio — free tier, đơn giản:
 $env:GEMINI_API_KEY = "your_key_here"
+#   (B) Vertex AI — paid GCP, KHÔNG dính trần 20 req/ngày (đang dùng từ 22/6/2026):
+$env:GOOGLE_GENAI_USE_VERTEXAI = "True"
+$env:GOOGLE_CLOUD_PROJECT      = "project-id-cua-ban"
+$env:GOOGLE_CLOUD_LOCATION     = "us-central1"
+#   Vertex cần chạy 1 lần: gcloud auth application-default login   (tạo ADC)
 
-# 4. Test nhanh SDK mới hoạt động
-python -c "from google import genai; c = genai.Client(); print(c.models.generate_content(model='gemini-3.5-flash', contents='Hello').text)"
+# 4. Test nhanh SDK hoạt động — genai.Client() KHÔNG tham số, tự đọc env ở bước 3
+python -c "from google import genai; c = genai.Client(); print(c.models.generate_content(model='gemini-2.5-flash-lite', contents='Hello').text)"
 ```
 
 ---
@@ -85,6 +94,8 @@ Khi được hỏi *"kể về dự án của bạn / bạn làm gì ở đây"*
 > **Tài liệu tham khảo System Design:** Trước khi bắt đầu Tuần 1, hãy đọc kỹ Phần I và V của [Bản Đồ Quyết Định Công Nghệ & Chi Phí](file:///c:/Users/Pc/Desktop/Build%20CV/ai-code-auditor/docs/ban-do-cong-nghe-chi-phi.md) để nắm được các cấp độ kiến trúc RAG và cách đọc code mẫu từ các dự án tham khảo.
 
 **Mục tiêu tuần:** Tự viết từng bước RAG pipeline, hiểu input/output mỗi bước, giải thích được cho người khác.
+
+> 🧭 **Góc Architect (song song, 30 phút/tối):** đọc [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **A2 Chunking · A3 Embedding · A4 Retrieval · A5 Grounding** — tập trung khối 🚩 và 🔍 để biết AI hay sai gì khi sinh code các bước này.
 
 ---
 
@@ -580,6 +591,8 @@ Tạo file `exercise_rag_markdown.py`: Build RAG pipeline tương tự nhưng ch
 
 **Mục tiêu tuần:** Chuyển từ list Python sang vector DB, bắt đầu đo precision, có số liệu thật cho CV.
 
+> 🧭 **Góc Architect:** [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **A4 Hybrid · B1 Evaluation · B3 chọn Vector DB** — gắn với việc đo precision@3 và migrate ChromaDB tuần này.
+
 ---
 
 ### Ngày 8 (Thứ Ba 24/6) — Cài ChromaDB, migrate storage
@@ -661,23 +674,30 @@ from sentence_transformers import SentenceTransformer
 model = SentenceTransformer("BAAI/bge-m3")
 
 # Lựa chọn 2 (KHUYÊN DÙNG nếu máy đủ khoẻ) — Qwen3-Embedding:
-#   #1 bảng MTEB đa ngôn ngữ 2026 (~70.6), rất mạnh cho tiếng Việt.
+#   Dẫn đầu đa ngôn ngữ 2026 (RoPE + model lớn), rất mạnh cho tiếng Việt.
 #   model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")  # bản nhỏ, nhẹ hơn
-# (bản 8B mạnh nhất nhưng nặng — bản 0.6B đủ tốt để học + chạy CPU/GPU phổ thông)
+# (bản lớn mạnh nhất nhưng nặng — bản 0.6B đủ tốt để học + chạy CPU/GPU phổ thông)
+
+# Lựa chọn 3 — VN chuyên biệt (đáng thử cho tiếng Việt thuần):
+#   model = SentenceTransformer("bkai-foundation-models/vietnamese-bi-encoder")
+#   # hoặc halong-embedding — đều có mặt trên benchmark VN-MTEB
 
 # Chạy lại eval_set, so sánh precision@3
 ```
 
+> ⚠️ **Đừng tin leaderboard chung (MTEB tiếng Anh) — dùng benchmark VN (VN-MTEB) làm điểm khởi đầu, rồi để GOLDEN SET tiếng Việt của mình chốt.** Quy trình swap-and-measure đầy đủ ở [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **A8**.
+
 Ghi lại kết quả so sánh (điền số thật để đưa vào CV):
 ```
-| Model               | Precision@3 | Ghi chú                          |
-|---------------------|-------------|----------------------------------|
-| all-MiniLM-L6-v2    | ??%         | 80MB, nhanh, baseline tuần 1    |
-| BAAI/bge-m3         | ??%         | ~2GB, đa ngôn ngữ tốt           |
-| Qwen3-Embedding-0.6B| ??%         | SOTA đa ngôn ngữ 2026, hợp VN   |
+| Model                          | Precision@3 | Ghi chú                          |
+|--------------------------------|-------------|----------------------------------|
+| all-MiniLM-L6-v2               | ??%         | 80MB, nhanh, baseline tuần 1     |
+| BAAI/bge-m3                    | ??%         | ~2GB, đa ngôn ngữ tốt            |
+| Qwen3-Embedding-0.6B           | ??%         | Dẫn đầu đa ngữ 2026, hợp VN       |
+| vietnamese-bi-encoder (bkai)   | ??%         | VN chuyên biệt, nhẹ              |
 ```
 
-> 💡 *Đây chính là số liệu vàng cho CV: "Cải thiện precision@3 từ X% (MiniLM) lên Y% bằng cách đổi sang Qwen3-Embedding".*
+> 💡 *Đây chính là số liệu vàng cho CV: "Cải thiện precision@3 từ X% (MiniLM) lên Y% bằng cách đổi sang Qwen3-Embedding, đo trên golden set tiếng Việt".*
 
 ---
 
@@ -707,9 +727,11 @@ Thí nghiệm: tạo 2 collection riêng trong ChromaDB — `code_chunks` và `d
 ## TUẦN 3: Agent + Tool-Calling
 
 > [!TIP]
-> **Tài liệu tham khảo:** Đọc Phần I, II, III của [Bản Đồ Quyết Định Công Nghệ & Chi Phí](file:///c:/Users/Pc/Desktop/Build%20CV/ai-code-auditor/docs/ban-do-cong-nghe-chi-phi.md) để nắm vững mô hình ReAct Agent, so sánh chi phí các model khi chạy vòng lặp Agent (ví dụ: vì sao dùng GPT-4o-mini/Gemini 3.5 Flash cho agent loop).
+> **Tài liệu tham khảo:** Đọc Phần I, II, III của [Bản Đồ Quyết Định Công Nghệ & Chi Phí](file:///c:/Users/Pc/Desktop/Build%20CV/ai-code-auditor/docs/ban-do-cong-nghe-chi-phi.md) để nắm vững mô hình ReAct Agent, so sánh chi phí các model khi chạy vòng lặp Agent (ví dụ: vì sao dùng model rẻ DeepSeek V3.2 / Gemini 3.5 Flash cho agent loop).
 
 **Mục tiêu tuần:** Hiểu pattern ReAct, viết vòng lặp agent cơ bản, thêm tool thật.
+
+> 🧭 **Góc Architect:** [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **A6 Model & Cost · A7 Agent design (L3)** — đặc biệt khối 🛑 "khi nào KHÔNG cần agent" để tránh over-engineer.
 
 > Lộ trình cũ đặt Agent ở tuần 4. Đẩy lên tuần 3 vì: (1) phần hấp dẫn nhất, giữ động lực; (2) cần thời gian nhiều hơn cho multi-agent + MCP ở tuần sau.
 
@@ -937,6 +959,8 @@ Mỗi khái niệm LangChain/LangGraph học xong, mở `mini_rag.py` hoặc `ag
 
 **Mục tiêu tuần:** Tách agent thành 2–3 agent phối hợp, dùng LangGraph.
 
+> 🧭 **Góc Architect:** [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **A7 · C3 Capstone điều phối (L4)** — nhớ nguyên tắc đỉnh tháp: kiềm chế, chỉ multi-agent khi vai trò thật sự tách bạch.
+
 ### Ngày 29 (Thứ Ba 15/7) — Setup LangGraph project
 
 ```bash
@@ -972,6 +996,8 @@ MCP (Model Context Protocol) là chuẩn mới 2025–2026. Expose tools qua MCP
 
 ## TUẦN 6: Deploy + Áp Dụng Ngược Lại Dự Án 1
 
+> 🧭 **Góc Architect:** [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **B3 Deploy (🟢)** + đọc-để-biết **B2 Security · B4 Build-vs-Buy (🔵)** — gắn với audit thật chatbot-fanpage (tìm hardcode secret).
+
 ### Ngày 36–37 (Thứ Ba–Thứ Tư 22–23/7) — Docker + Deploy
 
 ```dockerfile
@@ -1004,6 +1030,8 @@ Viết README.md cho `ai-code-auditor`:
 ---
 
 ## TUẦN 7: CV + Luyện Phỏng Vấn
+
+> 🧭 **Góc Architect:** ôn [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **C1 Khung phán đoán · C2 Catalog red-flags** — dùng để trả lời câu phỏng vấn "khi nào dùng gì / sao biết AI sai".
 
 ### Ngày 43–44 (Thứ Ba–Thứ Tư 29–30/7) — Viết CV bullet
 
@@ -1040,10 +1068,12 @@ Dựa trên NOTES.md, quay video tự giải thích mỗi dự án 5 phút, xem 
 | 8 | MCP là gì, giải quyết vấn đề gì? |
 | 9 | Precision@3 của bạn bao nhiêu, đã làm gì để cải thiện? |
 | 10 | Giải thích luồng từ khi user hỏi đến agent trả lời? |
+| 11 | Context window 1M token rồi, RAG còn cần không? (long-context vs RAG) |
+| 12 | GraphRAG là gì, khi nào chọn thay vì RAG thường? |
 
 ---
 
-## 🎤 NGÂN HÀNG ĐÁP ÁN MẪU — 10 CÂU PHỎNG VẤN CỐT LÕI
+## 🎤 NGÂN HÀNG ĐÁP ÁN MẪU — 12 CÂU PHỎNG VẤN CỐT LÕI
 
 > Đây là phần ôn luyện chính. Mỗi đáp án theo **Công thức 3 câu** (Vấn đề → Giải pháp → Đánh đổi). Đừng học vẹt từng chữ — hiểu ý rồi diễn đạt lại bằng lời mình. Che đáp án, tự nói thành tiếng trước.
 
@@ -1077,6 +1107,18 @@ Dựa trên NOTES.md, quay video tự giải thích mỗi dự án 5 phút, xem 
 
 **10. Giải thích luồng từ khi user hỏi đến agent trả lời?**
 > *"User đặt câu hỏi → (nếu là agent) router quyết định cần tool nào → agent chạy vòng ReAct: nghĩ (Thought) → gọi tool grep/read_file/rag_search (Action) → nhận kết quả (Observation) → lặp đến khi đủ thông tin → tổng hợp câu trả lời cuối, kèm trích dẫn file/chunk. Với RAG thuần (không agent): embed câu hỏi → cosine similarity → top-K chunk → ghép prompt có ràng buộc chống bịa → gọi LLM → trả lời. Tôi luôn log token/latency mỗi lần gọi LLM để biết chi phí và điểm nghẽn."*
+
+---
+
+> **Bổ sung từ track Beyond-RAG (Tầng 1)** — hai câu "cấp cao" để bật khỏi đám fresher. Đào sâu: [beyond-rag-phase-2.md](beyond-rag-phase-2.md).
+
+**11. Context window 1M token rồi, RAG còn cần không? (long-context vs RAG)**
+> *"Vẫn cần, và lý do mang tính vật lý chứ không phải sở thích. **Một:** nạp 1M token mỗi lần thì pha prefill cực nặng (self-attention ~O(n²)) đẩy thời gian phản hồi đầu tiên lên hàng chục giây, và KV-cache ngốn VRAM khổng lồ cho mỗi user đồng thời — không khả thi real-time. **Hai:** 'lost in the middle' — model đọc được nhưng suy luận kém với thông tin nằm giữa context dài. **Ba (điểm tôi muốn nhấn):** RAG là **màng lọc bảo mật** — gắn Row-Level Security vào metadata để loại dữ liệu user không có quyền *trước khi* nó vào prompt. **Đánh đổi:** tài liệu nhỏ + ít đổi thì nhồi thẳng (long-context) đơn giản hơn; thực tế tôi dùng kiến trúc lai — hybrid retrieval → rerank → đẩy top chunk vào long-context."*
+> 👉 *Câu này cho thấy bạn hiểu hệ thống ở tầng phần cứng/kinh tế, không chỉ chạy demo.* ⚠️ **[Chờ kiểm chứng web]** mốc GB KV-cache nếu trích số cụ thể.
+
+**12. GraphRAG là gì, khi nào chọn thay vì RAG thường?**
+> *"RAG thường truy xuất các mảnh văn bản *rời rạc* theo độ tương đồng, nên **chết với câu hỏi cần đi qua quan hệ liên kết** — ví dụ 'hàm A gọi hàm nào, đổi nó ảnh hưởng module nào'. **GraphRAG** dựng knowledge graph (thực thể = node, quan hệ = edge); Local search duyệt lân cận một thực thể, Global search gom đồ thị thành cộng đồng bằng thuật toán Leiden rồi tóm tắt để trả câu vĩ mô. **Đánh đổi:** chi phí dựng index rất cao vì dùng LLM trích xuất. Riêng với code, tôi sẽ dựng call graph bằng **AST/static analysis** cho rẻ và chính xác, chỉ để LLM lo phần tóm tắt — đúng nguyên tắc đừng dùng LLM cho việc một hàm thường giải được."*
+> 👉 *Đây là hướng "AI Code Auditor v2" của tôi sau CV (xem beyond-rag-phase-2.md).*
 
 ---
 
@@ -1129,3 +1171,98 @@ Cắt từ trên xuống:
 - Agent cơ bản (tuần 3) — câu chuyện CV chính
 - Deploy (tuần 6) — nhà tuyển dụng muốn thấy production
 - Precision@3 (tuần 2) — số liệu cụ thể cho CV
+
+---
+
+## Học Bổ Sung Song Song: AWS Base Knowledge
+
+> **Triết lý:** Học để **hiểu nền tảng cloud**, không phải để thi cert hay bắt buộc dùng AWS. Giống học cosine similarity để hiểu embedding — biết luôn tốt hơn không biết. Thời gian: **~30 phút/ngày buổi tối**, không thay thế dự án chính.
+
+### Tại sao AWS khớp với dự án này
+
+| Bạn đang build bằng tay | AWS managed equivalent |
+|---|---|
+| Chunking + Embedding (tuần 1-2) | Amazon Bedrock Knowledge Bases |
+| Vector DB + Cosine search (tuần 1-2) | S3 Vectors (GA 2026) |
+| LangGraph agents (tuần 3-5) | Amazon Bedrock AgentCore |
+| FastAPI server (tuần 6) | AWS Lambda + API Gateway |
+
+**Story CV mạnh:** "Build RAG từ đầu để hiểu cơ chế → map sang managed service trên AWS" = tư duy Solution Architect, không chỉ là coder.
+
+### Thứ tự học theo tuần dự án
+
+| Tuần dự án | AWS học song song (30 phút/tối) | Lý do khớp |
+|---|---|---|
+| Tuần 1-2 (RAG tay) | IAM + S3 cơ bản | Hiểu cách lưu trữ + phân quyền production |
+| Tuần 3-4 (Agents) | Amazon Bedrock Getting Started | Map agents bạn đang code với Bedrock AgentCore |
+| Tuần 5-6 (Deploy) | Lambda + API Gateway | Hiểu serverless deployment — lựa chọn thay FastAPI trên cloud |
+| Tuần 7-8 (CV) | Review toàn bộ — map dự án sang AWS | Chuẩn bị câu trả lời phỏng vấn về cloud |
+
+### Tài nguyên (toàn bộ miễn phí)
+
+**AWS Skill Builder (free):**
+- [Amazon Bedrock Getting Started](https://skillbuilder.aws/) — 1h, làm trước nhất
+- [Foundations of Prompt Engineering](https://skillbuilder.aws/) — 4h, chỉ học phần Advanced (chain-of-thought, few-shot, jailbreak mitigation)
+
+**YouTube — search term theo tuần:**
+- Tuần 1-2: `"AWS IAM roles explained simply"` + `"AWS S3 tutorial beginner"`
+- Tuần 3-4: `"Amazon Bedrock explained 2025"`
+- Tuần 5-6: `"AWS Lambda Python tutorial"` + `"AWS API Gateway Lambda Python full tutorial"`
+
+**Kênh đáng tin:** AWS (official) · TechWorld with Nana · FreeCodeCamp
+
+### Bảng quyết định: Khi nào dùng AWS vs alternatives
+
+| Bài toán | Dùng gì | AWS có cần? |
+|---|---|---|
+| Startup / SME Việt Nam, budget thấp | Railway/Render ($5-20/tháng) | ❌ Không |
+| SME cần AI chatbot đơn giản | VPS + Docker + Gemini API | ❌ Không |
+| Enterprise / Fintech / outsource nước ngoài | AWS hoặc Azure | ✅ Cần |
+| Công ty yêu cầu AWS trong JD | AWS | ✅ Cần |
+
+> **Thực tế:** Học AWS để **đọc được JD tuyển dụng và không bị loại vòng CV** — nhiều công ty outsource và enterprise đề cập AWS. Không phải mọi dự án đều cần AWS, nhưng hiểu AWS giúp bạn tư duy đúng về cloud dù deploy ở đâu.
+
+---
+
+## 🆕 Tích Hợp Beyond-RAG (Tầng 1)
+
+> **Nguồn:** chắt từ bài nghiên cứu *"Beyond RAG"* (rà 22/6/2026). 7 món **rẻ + ăn điểm CV/phỏng vấn**, đã duyệt gấp vào lộ trình 2 tháng. Phần nặng cấp Enterprise (GraphRAG/RAPTOR/vLLM/audit swarm) ở [beyond-rag-phase-2.md](beyond-rag-phase-2.md) — track *sau CV*.
+>
+> **Nguyên tắc:** cả 7 món ≈ **+2–4 ngày rải rác**, KHÔNG phá deadline giữa 8/2026. Ưu tiên món trị đúng **nút thắt đã đo** (recall in-scope 33%, MiniLM yếu cross-lingual, "chunk nam châm" `admin/views.js#188`).
+
+### Món 1 — Reranking → "phễu 3 tầng" (hybrid → rerank → generate)
+- **Chèn:** Tuần 2 (sau khi có precision@3 baseline, quanh Ngày 11–13).
+- **3 câu:** Top-K cosine còn lẫn rác → reranker (cross-encoder, vd **BGE-Reranker** local hoặc **Cohere Rerank**) chấm lại từng cặp (câu hỏi, chunk) bằng cross-attention → lọc tinh top 5–10. **KHÔNG dùng** khi precision đã đủ (rerank thêm latency).
+- **Công sức:** ~0.5 ngày. **Lấp khoảng trống thật:** architect map A4 đã nói rerank nhưng bạn **chưa build bao giờ**. Đo precision@3 trước/sau rerank = số liệu CV.
+
+### Món 2 — CRAG-lite (Corrective RAG: tự chấm retrieval + fallback)
+- **Chèn:** Tuần 3 (thêm 1 tool "tự chấm độ tin retrieval" cho agent).
+- **3 câu:** Naive RAG tin mù kết quả search → một **retrieval evaluator** phân loại chunk (đúng/sai/mơ hồ), sai thì **fallback** (web search / keyword / hỏi lại). **KHÔNG dùng** khi retrieval vốn đã chuẩn (thêm bước thừa).
+- **Công sức:** ~0.5–1 ngày. **Trị đúng bệnh đã đo:** recall 33% + "chunk nam châm".
+
+### Món 3 — Generator–Validator loop + Python sandbox cho số học
+- **Chèn:** Tuần 5 (nâng cấp agent **Reviewer** đã có sẵn trong kiến trúc).
+- **3 câu:** LLM bịa và **tính sai số học** → tách Validator đối chiếu lại; *không cho nó tự nhẩm* mà chạy **Python sandbox** để có số tuyệt đối; lỗi thì trả critique có cấu trúc cho Generator sửa. **KHÔNG dùng** khi tác vụ không có ràng buộc kiểm chứng được.
+- **Công sức:** ~0.5 ngày. Câu "LLM không biết tính toán nên đẩy sang sandbox" nói trong phỏng vấn rất "senior".
+
+### Món 4 — RAG Triad + LLM-as-judge
+- **Chèn:** Tuần 2 (mở rộng golden set / khung đo Ngày 9).
+- **3 câu:** precision@3 chỉ đo *retrieval* → RAG Triad đo 3 trục: **Context Relevance · Groundedness · Answer Relevance** bằng một LLM chấm tự động. **KHÔNG dùng** khi chỉ demo 1 lần (khỏi dựng harness).
+- **Công sức:** ~0.5 ngày. **NOTES Ngày 6 đã tự bắc cầu sang "LLM-as-judge"** — đây là phần nối tiếp.
+
+### Món 5 — Constrained decoding / structured output (JSON Schema)
+- **Chèn:** Tuần 3 (parse Action của agent) + Tuần 5 (output báo cáo).
+- **3 câu:** Agent đang parse `Action: tool(arg)` bằng **regex** rất dễ vỡ → ép LLM xuất đúng JSON Schema (**function calling** / thư viện **Outlines**) để agent sau luôn parse được. **KHÔNG dùng** khi output là văn xuôi tự do.
+- **Công sức:** ~0.5 ngày. Chặn bug runtime thật (LLM thêm câu dẫn làm hỏng JSON).
+
+### Món 6 — Kinh tế Long-Context vs RAG + Self-Route/Pre-Route
+- **Chèn:** Tuần 7 (ngân hàng phỏng vấn) — xem **Câu 11** ở mục Ngân Hàng Đáp Án Mẫu.
+- **3 câu:** "Context 1M token rồi RAG chết chưa?" → chưa, vì prefill O(n²) + **KV-cache ngốn VRAM** + lost-in-the-middle + RAG là **màng lọc Row-Level Security**; tối ưu bằng Self-Route (thử RAG trước) / Pre-Route (model nhỏ định tuyến trước). **KHÔNG dùng** long-context thuần khi đa user / dữ liệu nhạy cảm phân quyền.
+- **Công sức:** **0 code** — pure knowledge, ROI cao nhất nhóm. Đúng kiểu câu hiring manager 2026 hay hỏi.
+
+### Món 7 — Observability bằng LangSmith / Arize Phoenix
+- **Chèn:** Tuần 4–5 (đi kèm LangGraph).
+- **3 câu:** "Log token/latency" thành "tôi **trace** được từng bước agent, bắt nút thắt + loop vô hạn" → đổi từ `print`/jsonl sang công cụ trace. **KHÔNG dùng** khi chạy 1 phát rồi bỏ.
+- **Công sức:** ~0.5 ngày. Biến 1 dòng CV thành "production-minded".
+
+> **Điểm cắt nếu trễ (bổ sung cho mục "Điểm Cắt Nếu Trễ Tiến Độ"):** giữ Món 1 (rerank) + Món 4 (RAG Triad) + Món 6 (0 code) vì ăn điểm CV nhất; cắt trước Món 7 (observability) → Món 5 (constrained decoding) → Món 2 (CRAG) nếu thiếu thời gian.

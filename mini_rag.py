@@ -115,7 +115,64 @@ def chunk_text(file_dict):
     If chunks are cutting a function in half, your regex boundary is
     wrong - fix it before moving on.
     """
-    raise NotImplementedError("Implement chunking strategy here")
+    path = file_dict["path"]
+    text = file_dict["text"]
+    chunks = []
+
+    if path.endswith(".md"):
+        # A) MARKDOWN: cắt theo heading. Pattern CÓ ngoặc -> re.split giữ lại
+        #    chính dòng heading trong kết quả (xem ví dụ ta vừa thử).
+        parts = re.split(r'(?m)^(#{1,6} .+)$', text)
+        current = parts[0].strip()        # phần text TRƯỚC heading đầu tiên (nếu có)
+        i = 1
+        while i < len(parts):             # duyệt theo từng CẶP: heading, body
+            heading = parts[i]
+            body = parts[i + 1] if i + 1 < len(parts) else ""
+            section = (heading + "\n" + body).strip()   # dán heading dính vào body
+            if section:
+                chunks.append(section)
+            i += 2                         # nhảy 2 bước vì mỗi vòng ăn 2 phần tử
+        if current:
+            chunks.insert(0, current)      # đặt preamble lên đầu cho đúng thứ tự
+
+    elif path.endswith(".js"):
+        # B) JAVASCRIPT: tìm VỊ TRÍ BẮT ĐẦU của mỗi hàm/route, không cắt rời chữ.
+        pattern = r'(?m)^(?:(?:async\s+)?function\s+\w+|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\(|router\.(?:get|post|put|delete|patch)\(|app\.(?:get|post|put|delete|patch)\(|module\.exports)'
+        boundaries = [m.start() for m in re.finditer(pattern, text)]  # các mốc cắt
+
+        if boundaries:
+            if boundaries[0] > 0:                       # có code đứng trước hàm đầu tiên?
+                preamble = text[:boundaries[0]].strip() # = phần import/biến top-level
+                if preamble:
+                    chunks.append(preamble)
+            for idx, start in enumerate(boundaries):
+                # mỗi chunk chạy từ mốc này đến mốc kế tiếp (hoặc hết file)
+                end = boundaries[idx + 1] if idx + 1 < len(boundaries) else len(text)
+                chunk = text[start:end].strip()
+                if chunk:
+                    chunks.append(chunk)
+        else:
+            chunks.append(text)            # file JS không khớp ranh giới nào -> để nguyên
+    else:
+        chunks.append(text)                # loại file khác -> 1 chunk, để fallback lo
+
+    # C) FALLBACK: chunk nào QUÁ DÀI thì cắt cứng theo số ký tự,
+    #    để không bao giờ lọt 1 chunk khổng lồ làm hỏng bước embedding.
+    final_chunks = []
+    for chunk in chunks:
+        if len(chunk) > FALLBACK_CHUNK_SIZE * 2:        # ngưỡng: dài gấp đôi mới cắt
+            for i in range(0, len(chunk), FALLBACK_CHUNK_SIZE):
+                piece = chunk[i:i + FALLBACK_CHUNK_SIZE].strip()
+                if piece:
+                    final_chunks.append(piece)
+        else:
+            final_chunks.append(chunk)
+
+    # đánh chunk_id chạy từ 0 cho mỗi file
+    return [
+        {"path": path, "chunk_id": i, "content": c}
+        for i, c in enumerate(final_chunks)
+    ]
 
 
 # -------------------------------------------------------------------
@@ -179,7 +236,14 @@ def cosine_similarity(vec_a, vec_b):
 
     Guard against division by zero (return 0.0 if either norm is 0).
     """
-    raise NotImplementedError("Implement cosine similarity by hand")
+    dot_product = np.dot(vec_a, vec_b)
+    norm_a = np.linalg.norm(vec_a)
+    norm_b = np.linalg.norm(vec_b)
+
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+
+    return dot_product / (norm_a * norm_b)
 
 
 def retrieve_top_k(query_embedding, index, k=TOP_K):
@@ -187,7 +251,6 @@ def retrieve_top_k(query_embedding, index, k=TOP_K):
     Input:  query_embedding (1D numpy vector), index (from build_index)
     Output: list of k chunk dicts, sorted by similarity descending,
             each with an added "score" key (float).
-
     TODO:
       1. For i in range(len(index["chunks"])):
              score = cosine_similarity(query_embedding, index["embeddings"][i])
@@ -203,7 +266,17 @@ def retrieve_top_k(query_embedding, index, k=TOP_K):
     that - just be ready to explain WHY it exists and what tradeoff
     it makes (speed vs. exactness).
     """
-    raise NotImplementedError("Implement top-k retrieval")
+    scored = []                                          # nơi chứa chunk đã chấm điểm
+    for i in range(len(index["chunks"])):               # duyệt TỪNG chunk trong kho
+        # vector chunk thứ i nằm ở dòng i của ma trận embeddings (khớp chỉ số)
+        score = cosine_similarity(query_embedding, index["embeddings"][i])
+        chunk_copy = dict(index["chunks"][i])           # SAO CHÉP, không sửa index gốc
+        chunk_copy["score"] = float(score)              # ép về float Python thường
+        scored.append(chunk_copy)
+
+    scored.sort(key=lambda x: x["score"], reverse=True)  # giống nhất lên đầu
+    return scored[:k]                                    # lấy K chunk điểm cao nhất
+
 
 
 # -------------------------------------------------------------------
@@ -231,7 +304,32 @@ def build_prompt(question, retrieved_chunks):
     model receives is the fastest way to debug "why did it answer
     that?" - a skill you'll use constantly in real LLM app work.
     """
-    raise NotImplementedError("Implement prompt assembly")
+    # B1: ghép từng chunk thành 1 khối context, MỖI chunk dán nhãn nguồn
+    context_parts = []
+    for c in retrieved_chunks:
+        context_parts.append(
+            # nhãn file + chunk_id + điểm -> để TRUY VẾT model dùng đoạn nào
+            f"--- File: {c['path']} | Chunk {c['chunk_id']} | Relevance: {c['score']:.3f} ---\n"
+            f"{c['content']}\n"
+        )
+    context_text = "\n".join(context_parts)   # nối các chunk, cách nhau 1 dòng trống
+
+    # B2: khung prompt. Phần "NGUYÊN TẮC" chính là rào chắn chống bịa.
+    prompt = f"""Bạn là trợ lý chuyên phân tích codebase. Trả lời câu hỏi DUY NHẤT dựa trên context bên dưới.
+
+NGUYÊN TẮC BẮT BUỘC:
+1. Chỉ dùng thông tin từ context. KHÔNG bịa thêm code, hàm, hoặc logic không có trong context.
+2. Nếu context không chứa thông tin liên quan, trả lời: "Tôi không tìm thấy thông tin này trong các đoạn code/tài liệu được cung cấp."
+3. Khi trích dẫn, ghi rõ file và chunk number.
+
+CONTEXT:
+{context_text}
+
+CÂU HỎI: {question}
+
+TRẢ LỜI:"""
+    return prompt
+
 
 
 # -------------------------------------------------------------------
@@ -241,13 +339,25 @@ def build_prompt(question, retrieved_chunks):
 def call_gemini(prompt):
     from google import genai
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("Set the GEMINI_API_KEY environment variable first")
+    # Hai backend, CÙNG một SDK — chỉ phần khởi tạo Client đổi (config-swap, xem architect A8).
+    # Lật qua lại bằng env var, không hardcode. Phần generate_content bên dưới GIỮ NGUYÊN.
+    if os.environ.get("GOOGLE_GENAI_USE_VERTEXAI"):
+        # Vertex AI (paid GCP): SDK tự đọc GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION từ env;
+        # xác thực bằng ADC (chạy 1 lần: gcloud auth application-default login). KHÔNG cần api key.
+        client = genai.Client()
+    else:
+        # AI Studio (free tier 20 req/ngày): cần GEMINI_API_KEY.
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "Chưa set backend LLM. Vertex: set GOOGLE_GENAI_USE_VERTEXAI=True "
+                "+ GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION (đã gcloud auth). "
+                "Hoặc AI Studio: set GEMINI_API_KEY."
+            )
+        client = genai.Client(api_key=api_key)
 
-    client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model="gemini-3.5-flash",
+        model="gemini-2.5-flash-lite",   # rẻ cho vòng lặp; đổi 1 dòng khi cần model mạnh hơn
         contents=prompt
     )
     return response.text
