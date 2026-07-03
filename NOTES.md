@@ -109,6 +109,148 @@ Mỗi khi gặp một khái niệm mới, hãy ép bản thân giải thích ng�
 
 ---
 
+## TUẦN 2: VECTOR DB THẬT + ĐÁNH GIÁ ĐỊNH LƯỢNG
+
+### Ngày 8: Migrate list Python → ChromaDB + so "apples-to-apples"
+*   **Vấn đề là gì?**
+    *   Kho Tuần 1 = list Python + ma trận numpy nằm trong **RAM** → tắt script là mất sạch, lần sau phải embed lại 3308 chunk. Và `retrieve_top_k` tự viết là **brute-force O(n)** — quét *từng* chunk mỗi câu hỏi, vài nghìn thì ổn, triệu vector thì sập.
+*   **Giải pháp là gì?**
+    *   **ChromaDB** lo 3 việc list không làm được: (a) **persistence** (lưu đĩa, khỏi embed lại); (b) **ANN index — HNSW** thay O(n) bằng **~O(log n)** (đồ thị "nhảy tắt" tới vùng vector gần); (c) lưu metadata + query bằng 1 lệnh.
+    *   **🔑 So công bằng (apples-to-apples) — né "bẫy 1":** để `query_texts=[...]` thì Chroma **tự embed bằng MiniLM-qua-ONNX** (khác runtime với `sentence-transformers`) → đang so **2 model khác nhau**, không phải kho-cũ vs kho-mới. Cách đúng: **tự embed rồi bơm `embeddings=` (lúc add) + `query_embeddings=` (lúc query)** → cả 2 bên cùng một bộ não. (= cô lập biến số, Ngày 7.) Tách 3 thứ na ná: **embedding** (vector, ở `embeddings=`) ≠ **cosine** (cách đo, đặt 1 lần `hnsw:space="cosine"` lúc tạo collection) ≠ **`embeddings`/`query_embeddings`** (tên cái hộp).
+    *   **Đo thật (chatbot-fanpage, 3308 chunks, 3 câu):** top-3 **KHỚP TUYỆT ĐỐI** cả chunk lẫn thứ tự ⇒ bằng chứng chạy thật cho **L2 ↔ cosine xếp hạng y hệt** (Ngày 3, vì MiniLM normalize sẵn). `hnsw:space=cosine` trả về **cosine _distance_ = 1 − similarity**, đúng từng số (sim 0.434 → dist 0.566 — *dự đoán trước, máy in đúng*).
+*   **Khi nào KHÔNG dùng / Lưu ý:**
+    *   **Đánh đổi HNSW = tốc độ vs chính xác tuyệt đối:** ANN là **gần đúng**, *có thể bỏ sót* true nearest neighbor; brute-force tay luôn đúng tuyệt đối nhưng chậm. Quy mô nhỏ (vài nghìn chunk, 1 user) → list + cosine tay vẫn nhanh + dễ debug hơn, cài Chroma là để **học nghề + đo so sánh**, không phải vì list đang chậm.
+    *   **🧠 HNSW 1 dòng:** = **Skip List trên graph** — *ngẫu nhiên* gán tầng lúc **build** (xác suất giảm theo hàm mũ → tầng cao càng thưa), *cố định* entry-point + greedy "nhảy cóc" tầng trên rồi "bò" tầng đáy lúc **search** → **O(log N)**. Giá phải trả: recall **95–99%** (KHÔNG tuyệt đối — đây là con số của "approximate") + **tốn RAM** (lưu cả đồ thị + edges, nặng hơn IVF-PQ). Data nhỏ (3308 chunk) nằm gọn RAM nên hôm nay chưa trượt phát nào ⇒ top-3 khớp tuyệt đối; tới *triệu* vector mới thấy 95–99% cắn vào.
+    *   **💎 Migrate KHÔNG sửa recall:** câu RBAC vẫn trúng `HUONG_DAN.md#30` (chunk SAI, đã grep-bóc Ngày 7). Đổi **kho chứa** (tầng dưới) ≠ đổi **bộ não embed** (tầng model). Sửa precision là việc **Ngày 10** (MiniLM → Qwen3/BGE-M3). Đừng kỳ vọng đổi DB mà số nhảy — 2 tầng khác nhau.
+
+### Ngày 9: Golden Set + Precision@3 (biến "cảm giác" thành 1 con số)
+*   **Vấn đề là gì?**
+    *   Baseline Ngày 6 là câu hỏi tùy hứng = "demo may mắn". Ngày 10 đổi MiniLM→Qwen3 **không chứng minh được** tốt lên thật hay tự huyễn hoặc, vì không có bài thi cố định + đáp án biết trước.
+    *   `precision@3 = 0/5` mới nói "đáp án không lọt top-3" — nhưng CHƯA phân biệt 2 thảm họa khác hẳn: (A) đáp án ở hạng 4–15 (sát nút, model nhỉnh là cứu) vs (B) hạng vài trăm / không có trong index (vỡ trận). Thiếu cái này thì 0/5 vô dụng để định hướng.
+*   **Giải pháp là gì?**
+    *   **Golden set** (`eval_set.py`): bộ câu hỏi **đóng băng**, mỗi câu dán sẵn `expected_path_substr` + `expected_keywords` (ground-truth). Chấm tự động 1 quy tắc: top-3 có mảnh nào **VỪA đúng file VÀ chứa keyword** không (`AND`, không `OR` — `OR` thổi điểm giả vì mảnh sai file vô tình dính keyword vẫn đậu). Tái dùng `build_index/embed_texts/retrieve_top_k` từ `mini_rag` (import, không copy).
+    *   **precision@3 ≠ recall/hit-rate@3:** cách roadmap đếm ("top-3 có dính chunk đúng không → 1 câu") thực ra là **hit-rate@3**; precision@3 thật = (số mảnh liên quan / 3). Phải gọi đúng tên khi phỏng vấn.
+    *   **Hàm chẩn đoán `gold_rank`** (món senior): xếp hạng TOÀN BỘ 3308 chunk, báo mảnh vàng nằm **hạng mấy**. Đây là cái biến "0/5 nản chí" thành bằng chứng định lượng. **Đo thật (5 câu in-scope, MiniLM): precision@3 = 0/5 = 0%**, nhưng mảnh vàng đều CÓ trong kho, chôn ở hạng **116 / 130 / 391 / 415 / 1724 trên 3308** (score 0.15–0.34) trong khi rác `.md` tiếng Việt ngồi top (0.5–0.65). ⇒ MiniLM **không thiếu kiến thức, nó xếp hạng sai** = bệnh retrieval/embedding, không phải generation. **Chunk nam châm mới: `HUONG_DAN.md#23`** hút top-1 của 4/6 câu tiếng Việt.
+*   **Khi nào KHÔNG dùng / Bẫy đã sập (verify, đừng đoán — Ngày 7 lặp lại):**
+    *   **`gold_rank` bắt lỗi của CHÍNH bài thi:** 2 câu báo "KHÔNG TÌM THẤY" → grep ra `IGNORE_DIRS` của `mini_rag` loại thư mục `tests/`, mà ground-truth mình trỏ vào `tests/admin-routes.test.js` + `tests/harness.js` → đáp án KHÔNG có trong corpus = **mình soạn golden set sai**, không phải retrieval dở. ⇒ **Quy tắc vàng: ground-truth phải trỏ vào nơi THẬT SỰ được index.** Sửa: RBAC trỏ lại `core/admin-auth.js` (có `ROLE_PERMISSIONS`, hạng 391); rút câu test-framework (đáp án chỉ ở tests/). **Phát hiện kiến trúc:** corpus đang bỏ `tests/`, trong khi tests chứa "sự thật quyền lực" (danh sách vai trò) → cân nhắc index tests sau.
+    *   **Golden set chỉ đáng làm khi sắp có thay đổi lớn cần chứng minh** (đúng lúc sắp sang Ngày 10). Và **đừng so 0/5 (Ngày 9) với 2/6 (Ngày 6)** — câu Ngày 9 thuần tiếng Việt hơn (khó + thực tế hơn), khác wording = khác bài thi. Từ giờ bộ 5 câu này **đóng băng** làm chuẩn; trị số tuyệt đối ít quan trọng bằng việc nó **cố định** để so Ngày 10.
+
+### Ngày 10: Swap embedding model (MiniLM → BGE-M3 → Qwen3) + đo lại precision@3
+*   **Vấn đề là gì?**
+    *   Ngày 9 đã chốt baseline MiniLM = **0/5**, mảnh vàng chôn hạng 116–1724 ⇒ nghi tầng embedding là nút thắt. Nhưng "nghi" chưa phải bằng chứng — phải **đổi đúng 1 biến (model) và đo lại trên CÙNG bài thi** mới biết model mạnh hơn có cứu được không, hay chỉ là kỳ vọng.
+*   **Giải pháp là gì?**
+    *   **Swap sạch (apples-to-apples):** thêm tham số `model_name` cho `load_embedding_model`, cho `eval_set.py` đọc tên model từ `sys.argv` → đổi model **KHÔNG sửa logic**, giữ nguyên chunking + golden set + cách chấm. Chỉ 1 biến thay đổi.
+    *   **Bẫy Qwen3 bất đối xứng:** Qwen3-Embedding là model *asymmetric* — query phải gắn "lời dặn" (`Instruct: ...\nQuery: ...`), document để trần. Bỏ bước này là **chấm oan** cho nó. BGE-M3/MiniLM không cần ⇒ chỉ áp khi tên model chứa `qwen3` (`embed_query`).
+    *   **Đo thật (CÙNG 5 câu golden set):**
+        | Model | precision@3 | Mảnh vàng (hạng) |
+        |---|---|---|
+        | all-MiniLM-L6-v2 | **0/5 = 0%** | 1724 / 415 / 391 / 116 / 130 |
+        | BAAI/bge-m3 | **2/5 = 40%** | verifySig **8**, credential **5**, RBAC **109**, lead ĐẬU, multi-shop ĐẬU |
+        | Qwen3-Embedding-0.6B | **N/A** | embed CPU-only ~310s/batch → ETA ~9h, DỪNG |
+    *   **💎 Bằng chứng vàng 1 — embedding KHÔNG còn là nút thắt:** đổi MiniLM→BGE-M3 đẩy mảnh vàng từ hạng **1724 → 8**, **415 → 5**. precision@3 **0% → 40%**. Câu CV: *"cải thiện precision@3 0%→40% khi đổi MiniLM→BGE-M3, đo trên golden set tiếng Việt"*.
+    *   **💎 Bằng chứng vàng 2 — 2 câu trượt nằm hạng 5 & 8 (sát top-3):** đây KHÔNG phải thất bại mà là **lời mời cho reranker / top-k lớn hơn** (Level 3). `gold_rank` biến "RỚT" thành định hướng: thêm rerank là 4/5, khỏi đổi model mù quáng.
+    *   **💎 Bằng chứng vàng 3 — verifySignature lộ thủ phạm mới = CHUNKING:** BGE-M3 đưa `webhook.js` lên **top-1 (0.662)** = đúng file! Nhưng vẫn RỚT vì chunk top-1 KHÔNG chứa keyword, chunk có keyword nằm hạng 8 → đúng "phát hiện vàng 2" Ngày 5 (hàm con `verifySignature` bị xé header khỏi thân). ⇒ **Embedding sửa xong → bug chunking Ngày 4–5 trồi lên là nút thắt kế.**
+*   **Khi nào KHÔNG dùng / Bẫy đã sập (verify, đừng đoán):**
+    *   **🔴 Số tham số ≠ chi phí inference — KIẾN TRÚC quyết định.** Qwen3-0.6B và BGE-M3 (~0.6B) bằng nhau về tham số, nhưng Qwen3 là **decoder (causal LM)** fp32 trên CPU → **~310s/batch, ~9.7s/chunk → ETA ~9h** cho 3308 chunk = bất khả thi; BGE-M3 là **encoder** (1 lượt forward 2 chiều) chạy CPU ngon. ⇒ Chọn model phải cân **cả hạ tầng** (có GPU không?), không chỉ điểm benchmark. Muốn Qwen3: cần GPU hoặc quantize (ONNX/int8). Máy này không có GPU (`torch.cuda.is_available()=False`).
+    *   **🔴 Nghi ngờ chính cây thước (golden set) — verify từng câu:** grep thật chatbot-fanpage: 3/5 ground-truth **đá tảng** (verifySig→webhook.js dòng 270-276 `createHmac/timingSafeEqual`; RBAC→admin-auth.js dòng 15 `ROLE_PERMISSIONS`; lead→lead-parser.js). Câu **credential** đúng (code ở `page-credentials.js` dòng 33,54) nhưng keyword `aes-256-gcm` rò ra 6 file docs → docs là distractor, luật `path AND keyword` loại đúng. Câu **multi-shop YẾU NHẤT**: ground-truth là 1 doc **archive/checkpoint**, keyword `dry_run` có ở **66 file** → logic isolation thật chắc nằm ở `core/shops/db-shop-config.js` / `db/multi-shop-proposal.sql`. ⇒ TODO: re-ground câu này rồi chạy lại CẢ 3 model cho đồng nhất. "ĐẬU" của multi-shop hôm nay đọc kèm chú thích.
+    *   **💡 Tác vụ dài PHẢI có tín hiệu sống:** `model.encode(3308)` để `show_progress_bar=False` → chạy mù 2 tiếng tưởng treo. Cách verify treo-hay-chậm: đo **delta CPU** (còn tăng = còn chạy). Đã đổi sang `show_progress_bar=True`. Bài học UX: im lặng = người dùng tưởng hỏng.
+
+### Ngày 11: Two-stage retrieval (Reranker) + GPU sống lại + ràng buộc 4GB VRAM
+*   **Vấn đề là gì?**
+    *   Ngày 10 chốt BGE-M3 = 40%, 2 mảnh vàng nằm hạng 5 & 8 (sát top-3). Bi-encoder embed query/chunk **riêng rẽ** → nén chunk thành vector TRƯỚC khi thấy câu hỏi → mất tương tác chéo, mảnh đúng tụt hạng. Cần tầng 2 đọc **(query + chunk) cùng lúc**.
+*   **Giải pháp là gì?**
+    *   **Two-stage:** bi-encoder lọc top-N (rẻ, quét cả kho) → **cross-encoder** (`bge-reranker-v2-m3`, XLM-R large ~568M) chấm lại từng cặp → top-3. `rerank()` trả **bản sao** (không mutate list caller); `eval_set.py` đọc `K_RETRIEVE` từ argv; **cache embedding bằng pickle** (khỏi embed lại 38'/lần — vector tái dùng được, chỉ rerank N là đổi).
+    *   **💎 Reranker CÓ tác dụng — ở ĐÚNG N:** quét N=10→100 đều **3/5 = 60%** (cứu câu credential, mảnh vàng hạng 5 lọt top-3); baseline no-rerank = 40%. ⇒ 40% → 60%.
+    *   **💎 N to hơn lại TỆ hơn (60% → 40% ở N=150):** cross-encoder chấm **từng cặp ĐỘC LẬP** nên điểm mảnh vàng **không đổi** theo N; rổ to chỉ **thêm cơ hội cho distractor mạnh lọt vào** — `next-session-prompt.md` (hạng bi-encoder ~101–150) được chấm +0.38, đạp credential ra. ⇒ chọn **N nhỏ (20–30): precision bằng, nhanh hơn, ít rủi ro hơn**. "To cho chắc" là phản trực giác SAI (= câu phỏng vấn vàng).
+    *   **💎 GPU = đòn bẩy TỐC ĐỘ, KHÔNG phải chất lượng:** CPU N=150 = **91 s/câu** → GPU ~**9.4 s** (~10×). precision **không đổi** theo thiết bị (đo thật, cùng golden set). Máy giờ có GPU thật (RTX 3050 Ti, torch cu126) — lật quyết định "DỪNG Qwen3" Ngày 10.
+*   **Khi nào KHÔNG dùng / Bẫy đã sập (verify, đừng đoán):**
+    *   **🔴 Mentor kết luận VỘI:** ban đầu chốt "reranker vô dụng, 40%→40%" khi **chỉ có dữ liệu N=150**. N=50 (60%) lật ngược. Lặp đúng bài học Q5/RBAC: **đừng chốt khi thiếu phép đo** — cái thiếu (N nhỏ) đúng là cái thay đổi câu chuyện.
+    *   **🔴 4GB VRAM là ràng buộc THẬT:** BGE-M3 (~2.2GB) + reranker (~2.27GB) fp32 cùng lúc > 3.45GB trống → **OOM**. Sửa: ép **embed→CPU** (đã cache nên chỉ embed 1 câu hỏi/lần, nhẹ), **rerank→GPU** (nút thắt tốc độ). Model >1B vẫn phải dùng API.
+    *   **Reranker KHÔNG sửa được 2 thứ → trần 60%:** (1) **recall tầng 1** — RBAC hạng 109 ngoài rổ nhỏ tối ưu; vào rổ 150 thì thua prose `DESIGN.md` (distractor `.md` tiếng Việt); (2) **chunking hỏng** — verifySig: chunk chứa `createHmac` bị xé mất tên hàm nên cross-encoder cũng dìm. ⇒ nút thắt kế: **chunking (Ngày 12)** + **tách/lọc doc-vs-code** diệt distractor.
+    *   **Pipeline tất định:** chạy lại cùng N ra **cùng số** (vector cached + cross-encoder eval mode, không random) → tái lập được, không phải bế tắc. Đo thời gian bị nhiễu **warmup GPU** + `gold_rank` quét tay 3308 chunk bằng Python (N=50 14s > N=150 9.4s là do warmup, không phải rerank chậm hơn) → muốn số sạch phải chạy 1 lần làm nóng trước vòng đo.
+*   **🎤 Câu phỏng vấn + trả lời mẫu (đã sửa — đọc to để ôn):**
+    *   *Hỏi:* "Rerank đẩy 40%→60% nhưng trần ở 60%, 2 câu kia bó tay. Cho 1 tuần, em làm gì — và vì sao KHÔNG phải đổi embedding model mạnh hơn?"
+    *   *Đáp:* "Tôi chọn **vá chunking** trước. Bằng chứng: sau khi thêm **tầng rerank** (không phải đổi model — BGE-M3 giữ nguyên), verifySignature đã lên **top-1 đúng file** → 'tìm đúng chỗ' hết là vấn đề. Nó vẫn rớt vì chunk chứa thuật toán bị **xé mất tên hàm**, nên cross-encoder **dìm** (KHÔNG phải 'từ chối' — từ chối là việc tầng generation) nó xuống dưới top-3. Đổi embedding model mạnh hơn vô ích vì nó vẫn embed **đúng cái chunk vụn đó** — **rác vào, rác ra**. Còn RBAC là **bệnh khác** (distractor doc tiếng Việt + recall, không phải chunking) → xử riêng bằng tách collection code/doc. Và tôi **đo lại trên cùng golden set** để chứng minh, không đoán."
+    *   **3 lỗi tự bắt được khi tập nói:** (1) rerank **dìm/rank thấp**, KHÔNG "từ chối"; (2) 40→60 là do **thêm tầng rerank**, không phải model mạnh hơn; (3) 2 câu rớt là **2 bệnh khác nhau** (verifySig=chunking, RBAC=distractor) — đừng gộp.
+
+### Ngày 12: Vá chunking 2 tầng + bài học "nút thắt ràng buộc" (vá đúng kỹ thuật mà số KHÔNG đổi)
+*   **Vấn đề là gì?**
+    *   Ngày 11 chốt trần 60%, verifySignature là "bệnh chunking": regex `.js` neo `(?m)^` **cột 0** → bỏ sót ~30 hàm con **thụt lề** trong `createWebhook` → cả hàm gom 1 cục khổng lồ → fallback chém mù 800 ký tự → xé `function verifySignature` khỏi thân `createHmac`. Không chunk nào tự đủ nghĩa.
+    *   Phụ: chunk mịn quá đà → nhiều helper tí hon (255–340 ký tự) mất ngữ cảnh.
+*   **Giải pháp là gì? (2 tầng tách bạch — đừng trộn)**
+    *   **Tầng 1 — regex:** chèn `[ \t]*` ngay sau `^` → `(?m)^[ \t]*(?:...function...)`. `[ \t]*` = "0-nhiều space/tab **trong cùng dòng**" → bắt cả hàm thụt lề. ⚠️ KHÔNG dùng `\s*` (nó nuốt cả `\n`, trườn qua dòng). An toàn vì `function\s+\w+` đòi "space + TÊN" ngay sau (chuỗi `'function'` giữa câu không khớp) + anchor đòi mở đầu dòng.
+    *   **Tầng 2 — `_merge_small_chunks(target=600)`:** gom các chunk liền kề vào "rổ" chừng nào tổng ≤ 600; chunk tự nó đã to thì đứng riêng. **Chỉ gộp NGUYÊN mảnh, không cắt** (ngược fallback). Đặt **TRƯỚC** fallback (nếu sau, fallback đã chém đứt seam rồi mới gộp = dán mảnh gãy). Goldilocks: 200=không gộp gì (fix chết yểu), **600=vừa**, 2000=chunk khổng lồ trở lại + vượt 1600 làm fallback nổ lại = **tái tạo bệnh Ngày 4-5**. Quy tắc: `MERGE_TARGET` luôn **< `FALLBACK*2`** kẻo 2 tầng đánh nhau.
+    *   **Đo thật (cùng golden set):** verifySignature bi-encoder **hạng 8 → 1** (chunk #18 tự đủ nghĩa 452 ký tự, có cả tên hàm + `createHmac/timingSafeEqual`). Chunk count toàn corpus: tầng1 → 3589, +tầng2 → **3016** (gộp −573 mảnh vụn). **Chunking ĐÚNG về cấu trúc.**
+*   **🔴 Nhưng precision@3 KHÔNG đổi: 40% (no-rerank) / 40% (rerank N=50) — thậm chí TỤT so Ngày 11 (60%, do lead rớt).** Đây là bài học lớn nhất:
+    *   **💎 Theory of Constraints:** verify đúng bệnh (vụn), vá đúng kỹ thuật — nhưng vá một bệnh **KHÔNG-phải-nút-thắt** thì đầu ra **đứng im**. Sửa cái không ràng buộc = 0 tác động.
+    *   **💎 Nút thắt thật = tầng RERANK + distractor doc `.md`** (đã verify bằng cách đọc tận chunk). 3/5 câu (verifySig, RBAC, lead) bị doc `.md` tiếng Việt "nói VỀ chủ đề" thắng chunk `.js` "LÀ bản cài đặt": verifySig→reranker chọn `webhook.js#28`+`zenbot-source-map.md`; lead→`HUONG_DAN.md#13` lên #1; RBAC→`DESIGN.md#9`. **Reranker khớp THỰC THỂ/bề mặt, không khớp Ý ĐỊNH "lấy phần triển khai".** "Chứa TÊN ≠ chứa ĐÁP ÁN."
+    *   **Reranker KHÔNG tự phân biệt code/doc** — nó coi tất cả là text như nhau nên mới bị lừa. **CHÍNH TA** phải áp cấu trúc (metadata `type` / 2 collection) để chặn distractor. → hồi sinh ý "tách code-vs-doc" hoãn từ Ngày 11, **giờ có bằng chứng tươi**. Đây là ROI kế tiếp, KHÔNG phải vặn thêm chunking.
+*   **Khi nào KHÔNG dùng / Bẫy đã sập (verify, đừng đoán — chủ đề lặp Ngày 7/9):**
+    *   **🔴 Bộ lọc test lỏng tay = bug giả dạng "hệ thống hỏng":** lệnh kiểm chứng dùng `endswith('webhook.js')` + `[0]` → quơ nhầm `sheets-webhook.js` (không có verifySignature) → tưởng regex hỏng. Regex không sai, **cây thước sai**. Lọc phải chặt: `endswith('core\\webhook.js')`.
+    *   **🔴 Cache `.pkl` phải xoá khi đổi chunking:** `build_index_cached` cache-hit → return vector CŨ, bỏ qua cả chunk lẫn embed → đo nhầm chunking cũ (apples-to-apples Ngày 10). Đổi chunk = `Remove-Item .index_cache_*.pkl` rồi chạy lại.
+    *   **Quyết định kỹ thuật:** GIỮ chunking mới (đúng cấu trúc, 8→1 sẽ thành điểm-đậu KHI trị xong reranker) nhưng **DỪNG vặn chunking** — chuyển nút thắt sang tách code/doc. Đừng đuổi con số bằng cách revert một thay đổi đúng.
+*   **🎤 Câu phỏng vấn:** *"Bỏ 1 ngày vá chunking mà precision vẫn 40%, có phí không?"* → *"Không. Chứng minh được chunking KHÔNG phải nút thắt (chunk đích 8→1 ở bi-encoder); precision đứng im dạy tôi 'sửa bệnh không-ràng-buộc thì output không đổi'; và nó định vị nút thắt thật = rerank bị doc `.md` đánh lừa 3/5 câu → hành động tiếp theo CÓ bằng chứng là tách code/doc. Báo team bằng số trên golden set, không bằng cảm giác."*
+
+### Ngày 13: Hybrid Search (BM25 + Dense → RRF) — thêm kênh keyword mà precision TỤT (bài học nút-thắt lặp lần 3)
+*   **Vấn đề là gì?**
+    *   Dense (bi-encoder) **mù token hiếm/định danh** (tên hàm, ID, `aes-256-gcm`) vì nén chunk thành vector TRƯỚC khi thấy query — nối tiếp Ngày 2 (`#1234`≈`#5678`). Tầng 1 chỉ có **1 kênh** (ngữ nghĩa) → thiếu hẳn kênh khớp-mặt-chữ. Pipeline chuẩn ngành = **BM25 + Dense → RRF → rerank**.
+*   **Giải pháp là gì?**
+    *   **BM25** (lib `rank_bm25`, `BM25Okapi`): chấm theo khớp mặt chữ (TF, có **bão hoà** k1 — lặp từ 10 lần KHÔNG ×10 điểm) × độ hiếm toàn corpus (**IDF**). Token càng hiếm mà khớp → điểm càng cao → kéo thẳng chunk chứa đúng `createHmac` lên. Dựng trên **CÙNG list chunk** của index (không re-chunk, không copy); tokenize `re.findall(r"\w+", text.lower())` — `\w` Unicode nên giữ token tiếng Việt có dấu.
+    *   **RRF (Reciprocal Rank Fusion)** trộn 2 danh sách: `RRF(d) = Σ 1/(k+rank_i(d))`, `k=60`. **Chỉ dùng THỨ HẠNG** → né bài toán **cosine bị chặn [−1,1] vs BM25 không chặn [0,∞)** (cộng thẳng thì thang BM25 nuốt cosine, chuẩn hoá thì mong manh). Chunk được **CẢ 2 kênh gật đầu** (đồng thuận) vượt chunk chỉ #1 ở một kênh — đó là linh hồn RRF. Code ~6 dòng: 1 dict cộng dồn, `enumerate(start=1)`, `sorted reverse`.
+*   **🔴 Đo thật (CÙNG golden set, BGE-M3, N=50): baseline dense→rerank 40% → HYBRID 20%. TỤT, không phải tăng** (dự đoán 40→60-80% SAI). Đổi đúng 1 kết quả: credential **ĐẬU→RỚT**.
+    *   **💎 Theory of Constraints (lặp lần 3 sau Ngày 11–12):** `gold_rank` cho thấy 3/5 mảnh vàng **đã trong rổ** (hạng **1, 5, 5** ở tầng 1) ⇒ **recall tầng 1 KHÔNG phải nút thắt**. BM25 chỉ giỏi *kéo mảnh vàng vào rổ* — mà rổ đã có sẵn. Vá cái không-ràng-buộc → số đứng im hoặc **tụt**.
+    *   **💎 Tác dụng phụ giết điểm:** reranker chấm **độc lập từng cặp** (Ngày 11) nên thêm ứng viên = **thêm cơ hội cho distractor thắng**, KHÔNG nâng gold. Hybrid bơm `next-session-prompt.md` (prose nói VỀ credential, BM25 khớp token `credential`/`mode` trong câu hỏi) vào rổ → reranker (mê doc `.md`, Ngày 12) chọn nó → credential vỡ. **Cùng cơ chế "N=150 tệ hơn N=50" Ngày 11**, chỉ khác nguồn distractor.
+    *   **💎 Đừng cargo-cult pipeline chuẩn:** BM25+dense→RRF→rerank **giả định tầng rerank tốt**. Ở corpus này rerank là **mắt xích yếu** → đắp thêm kênh keyword trước khi sửa reranker = đổ thêm dầu. **Golden set là trọng tài**, không đoán theo "best practice".
+*   **Khi nào KHÔNG dùng / Bẫy đã sập (verify, đừng đoán):**
+    *   **Hybrid KHÔNG có lỗi — sai ở thứ tự ưu tiên.** RRF/truncation code đúng: gold credential (hạng 5) VẪN trong rổ fused, reranker thấy mà vẫn dìm → không phải bug "evict gold". KHÔNG vứt code hybrid (giữ làm biến bật/tắt, test lại CÙNG code/doc filter Ngày 14 — có khi hybrid+filter mới thắng).
+    *   **🔴 Verify cây thước (lặp Ngày 9/12):** grep ra `wizard-routes.js` & `views.js` **cũng chứa** `aes-256-gcm` → có thể là đáp án hợp lệ, golden set đang siết `path=page-credentials.js` only. TODO: soi lại có nên cho credential nhiều path đúng. (Nhưng `next-session-prompt.md#2` top-1 thì chắc chắn distractor.)
+    *   **🔴 Lỗ hổng chẩn đoán:** `gold_rank` trong chế độ hybrid vẫn tính theo **dense ranking**, chưa phản ánh **hạng trong rổ FUSED** → message "NGOÀI rổ" của RBAC (dense hạng 104) gây hiểu nhầm. Cần thêm `fused_rank` để chẩn đúng tầng hybrid.
+    *   **🔑 Bẫy paste:** dán `rrf_fuse` nuốt mất dòng `def retrieve_top_k` → hàm biến mất → `import` sẽ vỡ. Quy tắc: sau mỗi paste lớn chạy `python -m py_compile file.py` (hoặc `import`) để chắc file còn parse.
+*   **SOTA + quyết định (research 29/6, Lăng kính 6 câu):** nút thắt = reranker bị doc distractor → trị bằng ranh giới **code/doc**. Chọn **metadata filter `type` trong 1 collection** (nhẹ, reversible, suy từ đuôi `.js`/`.md`, production-proven Chroma/NVIDIA) THAY VÌ tách 2-collection+routing (nặng, lock-in, +classifier). Tách 2-collection cho thêm *cô lập* (embedding riêng/loại) nhưng đó CHƯA phải nút thắt. Micro-PoC ≤2h Ngày 14: thử (a) chỉ-code, (b) code-trước doc-sau; leo routing chỉ khi filter cứng giết câu doc-hợp-lệ.
+
+### Ngày 14: Metadata filter code/doc (soft-boost λ) — hypothesis bị golden set BÁC BỎ (nút-thắt lặp lần 4)
+*   **Vấn đề là gì?**
+    *   Ngày 12–13 chốt (bằng cách đọc chunk): 3/5 câu vỡ vì reranker mê prose `.md` "nói VỀ" hơn `.js` "LÀ bản cài đặt". Giả thuyết: reranker không phân biệt code/doc → **CHÍNH TA** áp cấu trúc bằng nhãn `type` rồi phạt điểm doc để chặn distractor.
+    *   Rủi ro biết trước: có câu **đáp án LÀ doc** (multi-shop → `multi-shop-rollout.md`). Phạt cứng doc sẽ giết nó → chọn **soft-boost (trừ λ), KHÔNG hard-filter**.
+*   **Giải pháp là gì? (2 mảnh — giữ hàm cũ nguyên)**
+    *   **Nhãn `type`** suy TỪ ĐUÔI FILE (`.md`=doc, còn lại=code), gắn NGAY trong `chunk_text` (chỗ chunk khai sinh) → mọi consumer (build_index, bm25, chroma_rag import, test) TỰ thừa hưởng = **một nguồn sự thật**. KHÔNG hardcode (bug thầm lặng: gắn cứng "code" thì soft-boost vô hiệu). Đo: 2190 code / 826 doc.
+    *   **`soft_boost_by_type(reranked, lam)`**: TRỪ λ vào `rerank_score` của chunk doc rồi xếp lại. λ CÙNG ĐƠN VỊ điểm rerank (**logit, KHÔNG phải %** — không copy λ từ blog, mỗi reranker một thang). λ=0 → y baseline (chốt chặn sanity). **Thứ tự BẮT BUỘC:** rerank chấm CẢ RỔ (`top_k=len`) TRƯỚC, soft-boost mới cắt top-K — nếu cắt top-3 trước rồi mới phạt thì code đã bị cắt mất, phạt vô ích. `hard_filter_type` (vứt doc trước rerank) để riêng làm **ablation**.
+*   **🔴 Đo thật (CÙNG golden set, BGE-M3) — lưới 2×2 + N=150. Winner = BASELINE N=50 no-filter = 40%. Filter làm TỆ ĐI:**
+    | Ô | N50 base | N50 soft λ1 | N50 hyb | N50 hyb+soft | N150 base | N150 soft λ1 |
+    |---|---|---|---|---|---|---|
+    | precision@3 | **40%** | 20% | 20% | 20% | 20% | **0%** |
+    *   **💎 Zero-sum (tổng-bằng-không):** trên golden set này chỉ credential & multi-shop từng đậu, và filter **đổi câu này lấy câu kia**: soft-boost cứu credential (phạt `next-session-prompt.md`) NHƯNG giết multi-shop (đáp án LÀ doc). `type` flag mù — **không tách được "doc nói VỀ" với "doc LÀ đáp án"**.
+    *   **💎💎 Đòn đá tảng — RBAC ở N=150 soft bác bỏ CHÍNH giả thuyết:** gold `admin-auth.js` hạng 104 < 150 → **ĐÃ vào rổ**; mọi doc bị λ phạt sạch → top-3 **toàn code**; **VẪN RỚT** vì reranker chọn `admin-routes.js#68`/`views.js#190`, KHÔNG chọn gold `admin-auth.js`. ⇒ Gold trong rổ + distractor doc đã dọn sạch mà reranker **vẫn dìm gold** → nút thắt **KHÔNG phải** doc-distractor, **KHÔNG phải** recall.
+    *   **💎 Nút thắt thật = ĐỘ CHÍNH XÁC RERANKER (chọn nhầm chunk anh-em).** Cả 3 câu vỡ đều: gold ở tầng-1 nằm trong tầm (verifySig dense **#1**, lead **#5**, RBAC **#104**→vào rổ N150) NHƯNG reranker chọn chunk khác cùng-file/cùng-loại-code không chứa keyword. Filter/hybrid/N-lớn KHÔNG chạm được cái này → **Theory of Constraints lần 4** (vá cái không-ràng-buộc → số đứng im hoặc tụt).
+*   **Khi nào KHÔNG dùng / Bẫy đã sập (verify, đừng đoán):**
+    *   **type-filter KHÔNG dùng** khi golden set có câu **đáp-án-là-doc** (nó giết chúng). Và filter chỉ có ý nghĩa khi nút thắt ĐÚNG là doc-distractor — ở đây không phải.
+    *   **λ=1 ≈ hard-filter** ở thang điểm reranker này (điểm trải ~[−?, +0.6]; doc `+0.38` trừ 1 = `−0.62` rơi dưới mọi code). "Soft λ=1" thực chất test gần-hard → mới giết sạch multi-shop. Muốn soft thật phải λ nhỏ (~0.1–0.2), nhưng ở đây **không λ nào cứu** vì gold-code cũng bị reranker dìm.
+    *   **🔴 Cây thước chẩn đoán NÓI DỐI (lặp Ngày 9/13):** dòng `-> reranker vẫn dìm` cho câu bị λ phạt là sai — nó bị **λ của TA** đẩy xuống, không phải reranker. `gold_rank`/message chưa trừ boost (đúng lỗ `fused_rank` đã ghi trong plan). Sửa message ở Ngày 15.
+    *   **🔴 Cache: xoá hay VÁ?** Thêm key `type` chỉ đổi **metadata suy-được**, `content` y nguyên → **vector y hệt**. Bài học Ngày 12 ("đổi chunking → xoá `.pkl`") áp cho đổi CONTENT; ở đây chỉ cần **vá** cache (thêm `type` từ path, ~1s) thay vì re-embed 44 phút. Quy tắc tinh: *invalidate theo cái ĐÃ đổi* — content đổi mới re-embed; metadata suy-được đổi thì patch.
+*   **Quyết định:** KHÔNG ship filter; `λ=0` mặc định, code soft/hard giữ làm toggle (như hybrid). **Nút thắt kế = reranker precision** — tách 2 giả thuyết TRƯỚC khi tốn tiền: **H1** reranker yếu → thử **instruction-following reranker** (Voyage rerank-2.5 "ưu tiên implementation"); **H2** gold-chunk tự nó dở (chunking xé, đọc không ra đáp án) → reranker dìm ĐÚNG = "rác vào rác ra" (Ngày 11) → quay về chunking/golden-set. **Phải ĐỌC gold-chunk vs chunk-thắng mới phân định** (verify, đừng đoán).
+
+### Ngày 15: ReAct agent + structured output (`agent.py`) — agent chạy thật, 5 vòng debug đắt hơn bài học chính
+
+*   **Pattern ReAct (3 câu):**
+    *   **Vấn đề:** pipeline RAG là one-shot (retrieve 1 lần → trả lời), không xử lý được câu audit đa bước ("có mã hoá yếu không?" = tìm → đọc → thấy manh mối → tìm tiếp); chính tôi đã đo trần dense retrieval 60%, và lớp lỗi verifySig/RBAC là thứ grep trị tận gốc — lý do ngành chuyển sang agentic search.
+    *   **Giải pháp:** đặt LLM vào vòng lặp Thought → Action (gọi tool) → Observation (kết quả nối lại vào context) → lặp đến khi đủ thì Answer; model TỰ quyết bước kế dựa trên observation.
+    *   **Khi nào KHÔNG dùng:** câu 1 bước — mỗi step = 1 LLM call và **mỗi call gửi lại TOÀN BỘ lịch sử** (token phình dần) → agent chậm + đắt + thêm bề mặt lỗi loop vô hạn (bắt buộc `MAX_STEPS`, của MÌNH đặt, không phải của Google). Model cho loop = flash-lite ($0.10/$0.40, rẻ ~15–22× so 3.5-flash).
+*   **Structured output thay regex parse (3 câu):**
+    *   **Vấn đề:** cách paper 2022 bắt model in text `Action: grep(...)` rồi regex bắt lại — model lệch format một sợi tóc là agent đứng hình (bug runtime thật).
+    *   **Giải pháp:** truyền `tools=[hàm Python]` vào config; SDK đọc **signature + docstring** sinh JSON schema (⇒ **docstring = PROMPT dạy model dùng tool**, không phải ghi chú); model trả `response.function_calls` có sẵn `name`+`args` dict — không parse gì. TẮT `automatic_function_calling` để tự viết vòng lặp → có **trace từng bước** (nguyên liệu citation/findings của auditor — cái gì không quan sát được thì không sửa được).
+    *   **Khi nào KHÔNG dùng:** model không hỗ trợ function calling (local cũ) mới phải prompt-parse; automatic mode tiện demo nhưng nuốt trace.
+*   **API stateless — `contents` LÀ trí nhớ:** server không nhớ gì giữa 2 call; mỗi vòng phải append **2 lượt**: quyết định của model (`candidates[0].content` — thiếu nó là function_response mồ côi → lỗi 400) + kết quả tool (`Part.from_function_response`, role `user`). `candidates[0]` = phương án trả lời thứ nhất (N mặc định = 1), không phải thời gian 😅.
+*   💎 **Vòng lặp đúng ≠ agent giỏi:** cơ chế nằm ở code, **hành vi nằm ở SYSTEM_PROMPT (= bản policy)**. Đo thật 5 vòng: model nhỏ **lờ luật nếu-thì** ("nếu trượt thì thử lại") nhưng **theo QUY TRÌNH đánh số** (Bước 1→4); luật phải đo được ("ít nhất 2 pattern KHÁC"); ép **khảo sát MẶT DƯƠNG trước** (grep cái ĐANG dùng) rồi mới soi danh sách yếu — vì **vắng bằng chứng ≠ bằng chứng vắng**, và trả lời **đúng-nhờ-may ≠ đúng-nhờ-bằng-chứng** (phải nắm ground truth TRƯỚC khi chấm agent — grep tay codebase: HMAC-SHA256 `webhook.js:271`, AES-256-GCM `page-credentials.js:33`, timingSafeEqual khắp nơi).
+*   💎💎 **Chuỗi bug 3 tầng (chuyện phỏng vấn vàng):**
+    1.  **Bẫy Windows:** code mẫu `subprocess.run(["grep",...])` — Windows không có grep.exe (`where.exe grep` = not found) → `FileNotFoundError` bị `except Exception` nuốt → tool trả "Error" làm observation = **chết im lặng kiểu 1**. Vá: viết grep **Python thuần** (os.walk + re, tự lắp `file:line:` = format citation, 0 dependency).
+    2.  **Chuỗi con:** pattern `des` khớp `designed` (regex mù nghĩa/mù ngôn ngữ — chỉ so ký tự; khác embedding) → observation ngập rác DESIGN.md. Vá: dạy model `\b` **qua docstring tool** — KHÔNG ép `\b` trong tool (giết use-case tìm chuỗi con chủ đích như `Hmac`⊂`createHmac`).
+    3.  **JSON escape:** model viết `"\b..."` trong function call → JSON decode thành **ký tự backspace `\x08`** → regex hợp lệ nhưng match 0 → "No matches" = **chết im lặng kiểu 2** → agent phán chắc nịch "hệ thống không dùng mật mã" = **FALSE NEGATIVE TỰ TIN — tội nặng nhất của auditor** (bằng chứng nó sai: ground truth đầy crypto). Vá defensive: `pattern.replace("\x08", r"\b")` — tool biết tật của model thì sửa hộ. (Bẫy cùng họ: trong Python string `"\b"` cũng là backspace → source phải viết `\\b`.)
+*   🪜 **Thang đòn bẩy khi agent lười (leo từ rẻ):** sửa prompt (free, đã vắt 3 bản) → bật thinking → đổi model to. Mỗi lần leo đổi đúng 1 biến, có trace so sánh.
+*   **Thiết kế có chủ đích:** agent KHÔNG import `IGNORE_DIRS` của mini_rag dù có quy ước import-lại — set đó loại `tests/` (chính nó gây bug golden-set Ngày 9), mà **auditor không được mù tests** → agent chỉ bỏ `node_modules`/`.git`. Quy ước tái dùng thua ngữ nghĩa đúng.
+*   **Kết quả vòng 5 (đậu có điều kiện):** 2 grep đúng bài (dương trước, `\b` sau), kết luận khớp ground truth (SHA-256 + timingSafeEqual, sạch md5/sha1/des/rc4), tự khai vùng chưa chắc (.agent/ nói "encrypt" chưa rõ thuật toán). **Còn 3 bệnh → Ngày 16:** (1) **0 lần read_file** — tin lời README "kể" về page-credentials.js mà không mở code → **sót AES-256-GCM**; (2) citation mới có tên file, thiếu số dòng; (3) trần 50 dòng grep bị `.md` chiếm chỗ (os.walk đi từ gốc) = **doc distractor kiếp thứ 3** — cùng con quỷ Ngày 11-14, đổi tầng.
+
+---
+
 ## KIẾN THỨC NGOÀI LỀ TRÌNH — TẦNG XỬ LÝ INPUT (Ingestion)
 *(Học từ thảo luận: input thị trường thật là PDF/docx/excel/link/ảnh, không phải text thuần. Đây là tầng đứng TRƯỚC RAG.)*
 
@@ -159,6 +301,26 @@ Mỗi khi gặp một khái niệm mới, hãy ép bản thân giải thích ng�
     *   Kiến trúc lai tối ưu: **hybrid retrieval → rerank → long-context generation**; định tuyến **Self-Route** (thử RAG trước) / **Pre-Route** (model nhỏ quyết trước). ⚠️ **[Chờ kiểm chứng web]** "Pre-Route cắt 80% chi phí".
 *   **Khi nào KHÔNG dùng (RAG)?**
     *   Tài liệu nhỏ + ít đổi + 1 user → nhồi thẳng long-context đơn giản hơn, khỏi RAG. Đây vẫn là nguyên tắc xuyên suốt từ Ngày 1.
+
+---
+
+## KIẾN THỨC NGOÀI LỀ TRÌNH — TẦNG MEMORY (Agent có trí nhớ dài hạn)
+*(Đối chiếu bản đồ hệ-agent production 29/6: lộ trình phủ kín retrieval + eval — NGÁCH của mình — nhưng thiếu tầng memory đầy đủ. Đây là ô KỀ, ghi để NÓI được + build ở module bổ sung. Chi tiết build: `lo-trinh-chi-tiet.md` mục "MODULE BỔ SUNG — Tầng Memory".)*
+
+### 3 loại Memory + vì sao tách
+*   **Vấn đề là gì?** Mỗi lần chạy agent là STATELESS — *"everything inside the box is ephemeral"*, quên sạch sau mỗi lượt. Nhồi hết mọi thứ (lịch sử, hồ sơ user, hướng dẫn) vào 1 context thì tốn token + lost-in-the-middle + lẫn rác.
+*   **Giải pháp là gì?** Tách trí nhớ ra NGOÀI thành 3 loại, mỗi loại 1 kho + 1 cách lấy: **Procedural** (cách hành xử / skills → file `Skill.md`), **Semantic** (facts bền + hồ sơ user → vector store, lấy bằng **RAG top-k**), **Episodic** (sự kiện có mốc thời gian + lịch sử chat → **SQL + vector**). Working memory chỉ nạp ĐÚNG phần cần mỗi lượt.
+*   **Khi nào KHÔNG dùng?** Tác vụ 1 lượt / không cần nhớ qua phiên → stateless là đủ. Đừng dựng đủ 3 tầng từ đầu — đa số hệ khởi động chỉ cần **semantic (RAG)**; thêm tầng khi *dữ liệu* đòi.
+
+### Episodic: "RAG cho liên quan + SQL cho gần đây" (xác nhận note Ngày 2)
+*   **Vấn đề là gì?** Lịch sử hội thoại vừa cần lấy theo NGHĨA ("hồi nãy bàn về thanh toán") vừa cần lấy theo THỜI GIAN ("3 lượt gần nhất"). Một mình embedding làm KHÔNG nổi vế thời gian — embedding mù thứ tự/recency y như mù số (`#1234`≈`#5678`, Ngày 2).
+*   **Giải pháp là gì?** Hai kênh: **vector RAG** lấy k lượt LIÊN QUAN + **SQL `ORDER BY timestamp`** lấy m lượt GẦN NHẤT → ghép vào context. Đúng nhánh "RAG for relevance + SQL for recency" trên bản đồ — và là **bằng chứng sống** cho quy tắc "exact/recency → DB, KHÔNG dùng embedding".
+*   **Khi nào KHÔNG dùng?** Hội thoại 1 lượt; hoặc khi chỉ cần facts bền (đẩy thẳng sang semantic) chứ không cần lượt thô.
+
+### Consolidation / Summarizer Agent (chống phình episodic)
+*   **Vấn đề là gì?** Episodic chứa chat THÔ phình vô hạn → retrieval chậm + nhiễu + vẫn ngốn token. Không giữ mọi lượt mãi được.
+*   **Giải pháp là gì?** Sau **N lượt**, một **summarizer agent dùng model RẺ** (flash-lite / DeepSeek) chắt lượt cũ thành **facts bền** đẩy vào semantic memory; lượt thô archive. Dùng model rẻ vì tác vụ dễ (tóm tắt) + chạy nền nhiều lần (tối ưu chi phí — nối bản năng đổi flash-lite Ngày 6).
+*   **Khi nào KHÔNG dùng?** Summarize CÓ mất mát — chi tiết nén đi có thể cần lại; chỉ gộp khi lịch sử đủ dài. Cân N: gộp sớm mất chi tiết, muộn thì phình.
 
 ---
 
