@@ -74,6 +74,25 @@ def load_files(root_dir):
                     files.append({"path": full_path, "text": text})
     return files
 
+# Thêm cạnh FALLBACK_CHUNK_SIZE (phần CONFIG):
+MERGE_TARGET_SIZE = 600        # Ngày 12: gộp chunk ngữ nghĩa liền kề tới ~ngưỡng này
+
+# Thêm hàm mới (đặt ngay trên chunk_text):
+def _merge_small_chunks(chunks, target=MERGE_TARGET_SIZE):
+    """Tầng 2: GỘP các chunk liền kề bị vụn. Input/Output: list[str]."""
+    merged = []
+    buf = ""                                     # "rổ" đang gom
+    for c in chunks:
+        if not buf:
+            buf = c                              # rổ rỗng -> đặt mảnh đầu
+        elif len(buf) + len(c) + 1 <= target:    # +1 cho ký tự '\n' nối
+            buf = buf + "\n" + c                 # còn chỗ -> dồn NGUYÊN mảnh
+        else:
+            merged.append(buf)                   # rổ đầy -> chốt, mở rổ mới
+            buf = c
+    if buf:
+        merged.append(buf)                       # đừng quên rổ cuối
+    return merged
 
 # -------------------------------------------------------------------
 # STEP 2: CHUNKING  <-- TODO (Day 4 concept applies here)
@@ -95,11 +114,11 @@ def chunk_text(file_dict):
 
     B) For .js files: split on top-level declarations.
        - Use re.split or re.finditer with a pattern that matches the
-         START of a function/route/handler, e.g. something matching
-         lines like 'function foo(', 'const foo = (', 'router.get(',
-         'app.post(', 'module.exports'.
-       - Each match starts a new chunk; everything up to the next
-         match belongs to the current chunk.
+        START of a function/route/handler, e.g. something matching
+        lines like 'function foo(', 'const foo = (', 'router.get(',
+        'app.post(', 'module.exports'.
+        - Each match starts a new chunk; everything up to the next
+        match belongs to the current chunk.
 
     C) FALLBACK (for anything A/B didn't split, or files where no
        boundary matched at all): split the remaining text into pieces
@@ -137,7 +156,7 @@ def chunk_text(file_dict):
 
     elif path.endswith(".js"):
         # B) JAVASCRIPT: tìm VỊ TRÍ BẮT ĐẦU của mỗi hàm/route, không cắt rời chữ.
-        pattern = r'(?m)^(?:(?:async\s+)?function\s+\w+|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\(|router\.(?:get|post|put|delete|patch)\(|app\.(?:get|post|put|delete|patch)\(|module\.exports)'
+        pattern = r'(?m)^[ \t]*(?:(?:async\s+)?function\s+\w+|(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\(|router\.(?:get|post|put|delete|patch)\(|app\.(?:get|post|put|delete|patch)\(|module\.exports)'
         boundaries = [m.start() for m in re.finditer(pattern, text)]  # các mốc cắt
 
         if boundaries:
@@ -156,6 +175,9 @@ def chunk_text(file_dict):
     else:
         chunks.append(text)                # loại file khác -> 1 chunk, để fallback lo
 
+    # TẦNG 2 (Ngày 12): gộp chunk vụn TRƯỚC khi fallback xét độ dài
+    chunks = _merge_small_chunks(chunks)
+
     # C) FALLBACK: chunk nào QUÁ DÀI thì cắt cứng theo số ký tự,
     #    để không bao giờ lọt 1 chunk khổng lồ làm hỏng bước embedding.
     final_chunks = []
@@ -168,9 +190,14 @@ def chunk_text(file_dict):
         else:
             final_chunks.append(chunk)
 
+    # Ngày 14: nhãn 'type' suy TỪ ĐUÔI FILE (không hardcode!) — .md=doc, còn lại=code.
+    # Đặt ở đây (chỗ khai sinh chunk) -> mọi consumer (build_index, bm25,
+    # chroma_rag import chunk_text, test) TỰ thừa hưởng -> một nguồn sự thật.
+    chunk_type = "doc" if path.endswith(".md") else "code"
+
     # đánh chunk_id chạy từ 0 cho mỗi file
     return [
-        {"path": path, "chunk_id": i, "content": c}
+        {"path": path, "chunk_id": i, "content": c, "type": chunk_type}
         for i, c in enumerate(final_chunks)
     ]
 
@@ -179,9 +206,13 @@ def chunk_text(file_dict):
 # STEP 3: EMBEDDING MODEL (fully implemented - setup only, the
 # interesting part is what you DO with the vectors in step 5)
 # -------------------------------------------------------------------
-def load_embedding_model():
+def load_embedding_model(model_name=EMBEDDING_MODEL_NAME, device=None):
+    # Ngày 10: thêm tham số model_name (mặc định = MiniLM) để swap "bộ não"
+    # embedding mà KHÔNG sửa logic. eval_set.py truyền tên model vào đây.
+    # Ngày 11 (GPU 4GB): thêm device — None = tự chọn (cuda nếu có), "cpu" = ép CPU
+    # để nhường VRAM cho reranker khi chạy 2 model cùng lúc.
     from sentence_transformers import SentenceTransformer
-    return SentenceTransformer(EMBEDDING_MODEL_NAME)
+    return SentenceTransformer(model_name, device=device)
 
 
 def embed_texts(model, texts):
@@ -189,7 +220,9 @@ def embed_texts(model, texts):
     Input:  list of strings, length n
     Output: numpy array, shape (n, embedding_dim)
     """
-    return model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+    # Ngày 10: bật thanh tiến trình — embed model nặng (Qwen3 decoder, CPU) lâu,
+    # không có tín hiệu sống thì tưởng treo. Tác vụ dài PHẢI hiện tiến độ.
+    return model.encode(texts, convert_to_numpy=True, show_progress_bar=True)
 
 
 # -------------------------------------------------------------------
@@ -245,6 +278,31 @@ def cosine_similarity(vec_a, vec_b):
 
     return dot_product / (norm_a * norm_b)
 
+def rrf_fuse(list_a, list_b, k=60):
+    """
+    list_a, list_b: mỗi cái là list các KEY chunk ĐÃ XẾP HẠNG
+        (phần tử [0] = hạng 1). key = thứ nhận diện 1 chunk, vd (path, chunk_id).
+    Trả về: list key xếp lại theo điểm RRF giảm dần.
+
+    Công thức:  RRF(key) = Σ_qua_các_list  1/(k + rank_trong_list)
+        - rank đếm TỪ 1 (hạng 1, 2, 3...), KHÔNG từ 0.
+        - key có ở cả 2 list -> CỘNG DỒN cả 2 phần.
+        - key chỉ ở 1 list -> vẫn tính (chỉ cộng 1 phần).
+    """
+    scores = {}                                # cuốn sổ: key -> điểm RRF cộng dồn
+    # MẸO: gói 2 list vào 1 tuple rồi lặp -> KHỎI viết 2 lần thân vòng lặp.
+    #      Chính vì cùng dùng 1 dict 'scores' mà key ở cả 2 list được cộng dồn tự nhiên.
+    for ranked_list in (list_a, list_b):
+        # enumerate(..., start=1): trả (1, key_đầu), (2, key_kế)... -> rank đếm TỪ 1.
+        for rank, key in enumerate(ranked_list, start=1):
+            # .get(key, 0.0): nếu key CHƯA có trong sổ thì coi như 0 rồi cộng
+            #                 -> đây chính là "dict khởi tạo 0" mà không cần khai báo trước.
+            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+
+    # Sắp các key theo điểm giảm dần. key=lambda... bảo sorted "so theo điểm trong sổ".
+    fused = sorted(scores.keys(), key=lambda key: scores[key], reverse=True)
+    return fused
+
 
 def retrieve_top_k(query_embedding, index, k=TOP_K):
     """
@@ -252,11 +310,11 @@ def retrieve_top_k(query_embedding, index, k=TOP_K):
     Output: list of k chunk dicts, sorted by similarity descending,
             each with an added "score" key (float).
     TODO:
-      1. For i in range(len(index["chunks"])):
-             score = cosine_similarity(query_embedding, index["embeddings"][i])
-             attach this score to a COPY of index["chunks"][i]
-      2. Sort all scored chunks by "score", descending.
-      3. Return the first k.
+    1. For i in range(len(index["chunks"])):
+            score = cosine_similarity(query_embedding, index["embeddings"][i])
+            attach this score to a COPY of index["chunks"][i]
+    2. Sort all scored chunks by "score", descending.
+    3. Return the first k.
 
     NOTE ON SCALE: this is brute-force O(n) - you compare the query
     against every single chunk. Fine for a few hundred chunks (this
@@ -278,6 +336,112 @@ def retrieve_top_k(query_embedding, index, k=TOP_K):
     return scored[:k]                                    # lấy K chunk điểm cao nhất
 
 
+# -------------------------------------------------------------------
+# STEP 5b (Ngày 13): HYBRID — kênh keyword BM25 (bù khuyết cho dense)
+# Dense embedding mù với token hiếm/định danh (tên hàm, ID, aes-256-gcm).
+# BM25 chấm theo khớp mặt chữ + độ hiếm (IDF) -> kéo thẳng chunk chứa đúng
+# 'verifySignature' lên. Hai kênh trộn bằng rrf_fuse() ở trên (chỉ dùng thứ hạng).
+# -------------------------------------------------------------------
+def tokenize_for_bm25(text):
+    r"""Tách token thô cho BM25: chữ thường + cắt theo \w+.
+    \w trong Python 3 mặc định Unicode -> token tiếng Việt CÓ DẤU vẫn giữ nguyên.
+    ĐÁNH ĐỔI cần đo: camelCase 'verifySignature' -> 1 token 'verifysignature'.
+       Query 'verifySignature' khớp; nhưng 'verify signature' (2 từ rời) thì KHÔNG.
+       -> đo trên golden set rồi mới quyết có tách camelCase hay không."""
+    return re.findall(r"\w+", text.lower())
+
+
+def build_bm25(chunks):
+    """Dựng BM25 trên CHÍNH list chunk của index (không re-chunk, không copy).
+    get_scores() sau này trả mảng điểm KHỚP CHỈ SỐ 'chunks' (chunk i <-> điểm i)."""
+    from rank_bm25 import BM25Okapi      # import cục bộ: file vẫn import được nếu chưa cài lib
+    corpus = [tokenize_for_bm25(c["content"]) for c in chunks]
+    return BM25Okapi(corpus)
+
+
+def bm25_search(bm25, chunks, question, k=TOP_K):
+    """Trả top-k chunk theo điểm BM25, đã xếp hạng. Mỗi chunk là BẢN SAO + 'bm25_score'.
+    'chunks' PHẢI là đúng list đã dựng bm25 (chỉ số phải khớp tuyệt đối)."""
+    scores = bm25.get_scores(tokenize_for_bm25(question))   # mảng điểm, khớp chỉ số chunks
+    top_idx = np.argsort(scores)[::-1][:k]                  # argsort tăng dần -> đảo -> lấy top-k
+    results = []
+    for i in top_idx:
+        c = dict(chunks[int(i)])                            # SAO CHÉP, không sửa index gốc
+        c["bm25_score"] = float(scores[i])
+        results.append(c)
+    return results
+
+
+def load_reranker(model_name="BAAI/bge-reranker-v2-m3", device=None):
+    """Tải cross-encoder MỘT lần rồi tái dùng (giống load_embedding_model).
+    Tách riêng để KHÔNG tải lại 600MB mỗi câu hỏi.
+    device: None = tự chọn (cuda nếu có) — reranker là nút thắt tốc độ nên ưu tiên GPU."""
+    from sentence_transformers import CrossEncoder
+    return CrossEncoder(model_name, device=device)
+
+
+def rerank(reranker, question, candidates, top_k=TOP_K):
+    """
+    candidates = output của retrieve_top_k với k=N LỚN (50/150) — đã có 'content'.
+    Trả về top_k chunk, xếp lại theo điểm cross-encoder.
+
+    TODO bạn điền (4 bước):
+      1. pairs = list các CẶP (question, c["content"]) cho từng candidate.
+      2. scores = reranker.predict(pairs)         # numpy array, 1 điểm/cặp
+      3. gắn float(score) vào BẢN SAO mỗi chunk, key MỚI 'rerank_score'
+         (ĐỪNG đè 'score' cũ — giữ lại để so bi-encoder vs cross-encoder).
+      4. sort theo 'rerank_score' giảm dần, return top_k.
+    """
+    # B1: dựng các CẶP (question, content). predict ăn cặp, KHÔNG ăn vector.
+    pairs = [(question, c["content"]) for c in candidates]
+
+    # B2: 1 forward/cặp -> mảng điểm liên quan (logit, càng cao càng hợp).
+    #     Thứ tự scores KHỚP thứ tự pairs -> zip lại là gắn đúng chunk.
+    scores = reranker.predict(pairs)
+
+    # B3: gắn điểm vào BẢN SAO mỗi chunk (dict(c)) -> KHÔNG đụng list/đict gốc
+    #     của caller. Giữ luôn key 'score' cũ (cosine bi-encoder) để còn so sánh.
+    scored = [
+        {**dict(c), "rerank_score": float(s)}
+        for c, s in zip(candidates, scores)
+    ]
+
+    # B4: .sort() tại chỗ Ở ĐÂY an toàn vì 'scored' ĐÃ là list mới của riêng hàm
+    #     (caller không cầm tham chiếu tới nó) -> list gốc 'candidates' nguyên vẹn.
+    scored.sort(key=lambda x: x["rerank_score"], reverse=True)
+    return scored[:top_k]
+
+
+# -------------------------------------------------------------------
+# STEP 5c (Ngày 14): CHẶN DISTRACTOR DOC bằng nhãn 'type'
+# Reranker coi code/doc như nhau -> bị prose .md "nói VỀ" đánh lừa (Ngày 12-13).
+# CHÍNH TA áp cấu trúc: phạt điểm chunk doc để chunk code thắng sát nút vượt lên.
+# -------------------------------------------------------------------
+def soft_boost_by_type(reranked, lam=0.0, top_k=TOP_K, penalize="doc"):
+    """SOFT filter: TRỪ λ vào rerank_score của chunk type==penalize, rồi xếp lại.
+
+    reranked : output rerank() chấm TOÀN RỔ (chưa cắt top_k) — mỗi chunk có
+               'rerank_score' + 'type'. Phải chấm cả rổ TRƯỚC khi phạt, nếu không
+               chunk code bị cắt mất trước khi kịp vượt lên (xem ghi chú Ngày 14).
+    lam      : λ, CÙNG ĐƠN VỊ với rerank_score (logit, KHÔNG phải %). λ=0 -> y hệt
+               xếp hạng rerank gốc (chốt chặn sanity). λ lớn -> tiến dần về hard-filter.
+    KHÔNG mutate: mỗi chunk là bản sao + key mới 'boosted_score'.
+    """
+    boosted = []
+    for c in reranked:
+        pen = lam if c.get("type") == penalize else 0.0   # chỉ doc bị trừ, code trừ 0
+        boosted.append({**dict(c), "boosted_score": c["rerank_score"] - pen})
+    boosted.sort(key=lambda x: x["boosted_score"], reverse=True)
+    return boosted[:top_k]
+
+
+def hard_filter_type(candidates, keep="code"):
+    """HARD filter (chỉ để ABLATION): vứt sạch chunk type != keep TRƯỚC khi rerank.
+    Đo độ lệch cứng-vs-mềm. Rủi ro: giết câu doc-hợp-lệ -> KHÔNG phải lựa chọn chính.
+    An toàn rỗng: nếu lọc xong không còn gì thì trả nguyên rổ (khỏi rerank list rỗng)."""
+    filtered = [c for c in candidates if c.get("type") == keep]
+    return filtered if filtered else candidates
+
 
 # -------------------------------------------------------------------
 # STEP 6: PROMPT ASSEMBLY  <-- TODO (Day 7 hallucination guardrail here)
@@ -288,16 +452,16 @@ def build_prompt(question, retrieved_chunks):
     Output: a single string - the full prompt to send to Gemini
 
     TODO - the prompt should:
-      1. State the model's role: it answers questions about THIS
-         specific codebase, using ONLY the context provided below.
-      2. Explicitly instruct: if the answer is not contained in the
-         context, say so clearly instead of guessing. This is your
-         hallucination guardrail from Day 7 - test it deliberately
-         with an off-topic question.
-      3. Include each retrieved chunk, labeled with its file path
-         and chunk_id, so you can later verify which chunk the model
-         actually used.
-      4. End with the user's question, clearly marked.
+        1. State the model's role: it answers questions about THIS
+        specific codebase, using ONLY the context provided below.
+        2. Explicitly instruct: if the answer is not contained in the
+        context, say so clearly instead of guessing. This is your
+        hallucination guardrail from Day 7 - test it deliberately
+        with an off-topic question.
+        3. Include each retrieved chunk, labeled with its file path
+        and chunk_id, so you can later verify which chunk the model
+        actually used.
+        4. End with the user's question, clearly marked.
 
     DEBUG TIP: the first few times you run this, print(prompt) in
     full before sending it to Gemini. Reading the EXACT text the
