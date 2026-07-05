@@ -19,7 +19,23 @@ from google import genai
 from google.genai import types
 
 MODEL = "gemini-2.5-flash-lite"   # loop goi LLM nhieu lan -> model re (REV 2/7)
-MAX_STEPS = 6                     # luat cua MINH: qua 6 buoc thi dung, khong loop vo han
+MAX_STEPS = 10                    # nang 6->10 (do that Ngay 16: guardrail an ~1 step tu choi
+                                  # + 2-3 step dieu tra bu -> 6 la chet non giua chung)
+
+# Guardrail tang HARNESS (Ngay 16): luat kiem tra duoc bang code thi KHONG nho prompt giu.
+# Prompt = loi khuyen (model nho lo duoc - da do o vong 5); code = luat cung 100%.
+MAX_REJECTIONS = 2   # duong thoat chong deadlock: tu choi toi da 2 lan roi van cho ra
+GUARDRAIL_MSG = (
+    "TU CHOI cau tra loi: ban chua he read_file file nao. "
+    "Ket luan audit phai dua tren CODE DA DOC, khong phai mo ta tu grep/README. "
+    "Quay lai Buoc 2: read_file it nhat 1 file lien quan tim duoc tu grep, roi moi ket luan."
+)
+FINAL_SUMMARY_MSG = (
+    "HET LUOT DIEU TRA - dung goi them tool. "
+    "Tong ket NGAY findings tu nhung observation da co o tren: "
+    "moi ket luan kem citation file:line; "
+    "vung nao chua kip kiem tra thi khai ro 'CHUA KIEM TRA' - khong duoc suy dien."
+)
 
 # Auditor PHAI nhin thay tests/ va shops/ (bai hoc Ngay 9: IGNORE_DIRS cua
 # mini_rag loai tests/ lam ground-truth rot khoi corpus). Agent chi bo rac that.
@@ -35,35 +51,50 @@ CODEBASE_DIR = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\Pc\Desktop\chatb
 # PROMPT cho model biet khi nao dung tool nao, khong phai ghi chu.
 # ============================================================
 
-def read_file(filepath: str) -> str:
-    """Doc noi dung mot file trong codebase.
+def read_file(filepath: str, start_line: int = 1) -> str:
+    """Doc noi dung file trong codebase - MOI DONG CO SO DONG o dau.
 
     Dung khi da biet duong dan file (tu ket qua grep/list_files) va can xem
-    noi dung day du de phan tich.
+    noi dung de phan tich. Dung SO DONG trong output lam citation 'file:line'.
 
     Args:
         filepath: duong dan TUONG DOI tinh tu goc codebase, vd 'core/webhook.js'.
+        start_line: doc tu dong so may (mac dinh 1). Moi lan doc tra ve toi da
+            80 dong - file dai thi goi lai voi start_line lon hon de doc TIEP
+            (vd thay import dang ngo o dau file -> read_file file goc cua import).
     """
     full_path = os.path.join(CODEBASE_DIR, filepath)
     try:
         with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
+            lines = f.read().splitlines()
     except OSError:
         return f"Error: khong doc duoc file '{filepath}' (sai duong dan?)"
-    if len(content) > 3000:
-        # observation dai = token phinh theo TUNG vong lap (moi call gui lai het lich su)
-        content = content[:3000] + "\n... [TRUNCATED - file dai hon 3000 ky tu]"
-    return content
+
+    total = len(lines)
+    start = max(1, int(start_line))
+    window = lines[start - 1 : start - 1 + 80]   # 80 dong/lan ~ ngang muc 3000 ky tu cu
+    if not window:
+        return f"Error: '{filepath}' chi co {total} dong, khong co dong {start}"
+
+    # Danh so dong -> model trich citation file:line THAT, khong doan
+    numbered = "\n".join(f"{i}: {line[:200]}" for i, line in enumerate(window, start=start))
+    if start - 1 + 80 < total:
+        numbered += (f"\n... [file co {total} dong - goi read_file voi "
+                     f"start_line={start + 80} de doc tiep]")
+    return numbered
 
 
-def grep(pattern: str) -> str:
-    """Tim pattern (regex, khong phan biet hoa thuong) trong toan bo file .js/.md/.json.
+def grep(pattern: str, ext: str = "") -> str:
+    """Tim pattern (regex, khong phan biet hoa thuong) trong file .js/.md/.json.
 
     Dung DAU TIEN khi can dinh vi: ten ham, ten bien, thuat toan (vd 'createHmac',
-    'aes-256'), chuoi bao mat... Tra ve toi da 50 dong khop dang 'file:line: noi_dung'.
+    'aes-256'), chuoi bao mat... Tra ve cac dong khop dang 'file:line: noi_dung'.
 
     Args:
         pattern: chuoi hoac regex can tim, vd 'createHmac' hoac 'md5|sha1'.
+        ext: loc duoi file, vd '.js'. De trong = tim tat ca. Khi audit CODE,
+            NEN dung ext='.js' de ket qua khong bi file tai lieu .md/.json
+            chiem cho (tai lieu chi NOI VE code, khong phai code that).
 
     MEO QUAN TRONG: mac dinh khop CHUOI CON ('des' khop ca 'design'!).
     Muon khop NGUYEN TU, boc \\b hai dau: vd '\\bdes\\b|\\bmd5\\b'.
@@ -80,11 +111,15 @@ def grep(pattern: str) -> str:
         # model dua regex hong (vd 'verify(' thieu dong ngoac) -> tim literal thay vi crash
         rx = re.compile(re.escape(pattern), re.IGNORECASE)
 
-    matches = []
+    allowed = (ext,) if ext else ALLOWED_EXT   # model tu chon loc, mac dinh nhu cu
+
+    # Gom khop THEO FILE de ap tran tung file - 1 file lam to (vd DESIGN.md)
+    # khong duoc phep chiem het cho cua ca danh sach (bai hoc tran-50-dong Ngay 15/16)
+    by_file = {}
     for root, dirs, files in os.walk(CODEBASE_DIR):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]   # cat nhanh cay thu muc rac
         for name in files:
-            if not name.endswith(ALLOWED_EXT):
+            if not name.endswith(allowed):
                 continue
             path = os.path.join(root, name)
             rel = os.path.relpath(path, CODEBASE_DIR)
@@ -93,16 +128,35 @@ def grep(pattern: str) -> str:
                     for lineno, line in enumerate(f, start=1):
                         if rx.search(line):
                             # TU LAP format 'file:line: noi_dung' -> nguyen lieu citation
-                            matches.append(f"{rel}:{lineno}: {line.strip()[:160]}")
+                            by_file.setdefault(rel, []).append(
+                                f"{rel}:{lineno}: {line.strip()[:160]}"
+                            )
             except OSError:
                 continue
 
-    if not matches:
-        return f"No matches found for '{pattern}'"
-    out = "\n".join(matches[:50])
-    if len(matches) > 50:
-        out += f"\n... [con {len(matches) - 50} dong khop nua bi cat - hay grep pattern cu the hon]"
-    return out
+    if not by_file:
+        return f"No matches found for '{pattern}'" + (f" (ext={ext})" if ext else "")
+
+    total = sum(len(v) for v in by_file.values())
+    out_lines = [f"[{total} dong khop trong {len(by_file)} file]"]
+    if len(by_file) > 12:
+        # Qua nhieu file -> uu tien DO PHU: moi file 1 dong dau + dem so con lai,
+        # de KHONG file nao bi walk-order giau khoi tam mat (grep = linh trinh sat,
+        # can bao quat; do sau da co read_file lo). Bai hoc: page-credentials.js
+        # nam trong 395 khop nhung 3 lan lien bi chem khoi duoi danh sach.
+        for rel, hits in by_file.items():
+            extra = f"  [+{len(hits) - 1} khop nua trong file nay]" if len(hits) > 1 else ""
+            out_lines.append(hits[0] + extra)
+    else:
+        for rel, hits in by_file.items():
+            out_lines.extend(hits[:5])      # it file -> cho xem sau 5 dong/file
+            if len(hits) > 5:
+                out_lines.append(f"    ... [{rel}: con {len(hits) - 5} dong khop nua]")
+    if len(out_lines) > 100:
+        out_lines = out_lines[:100] + [
+            "... [ket qua qua dai bi cat - grep pattern cu the hon hoac them ext='.js']"
+        ]
+    return "\n".join(out_lines)
 
 
 def list_files(directory: str = ".") -> str:
@@ -142,6 +196,7 @@ Ban lam viec TU CHU: KHONG BAO GIO hoi nguoc nguoi dung - tu chon buoc tiep theo
 QUY TRINH BAT BUOC cho cau hoi audit (vd "co dung X yeu/khong an toan khong?"):
 Buoc 1 - Khao sat MAT DUONG truoc: grep xem he thong DANG DUNG gi cho chu de do
         (vd hoi ve ma hoa -> grep 'crypto|createHmac|createCipher|aes').
+        Audit CODE thi grep voi ext='.js' - tai lieu .md chi NOI VE code.
 Buoc 2 - read_file it nhat 1 file tim duoc o Buoc 1 de xac nhan cach dung thuc te.
 Buoc 3 - Grep danh sach X yeu, boc \\b de khop nguyen tu
         (vd '\\bmd5\\b|\\bsha1\\b|\\bdes\\b|\\brc4\\b' - tranh 'des' khop 'design').
@@ -171,6 +226,9 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
     # Lich su hoi thoai - "tri nho" duy nhat cua agent giua cac buoc
     contents = [types.Content(role="user", parts=[types.Part(text=question)])]
 
+    tools_called = set()   # trace nhung tool DA THUC THI - nguyen lieu cho guardrail
+    rejections = 0         # dem so lan guardrail tu choi (de biet khi nao mo duong thoat)
+
     for step in range(1, max_steps + 1):
         response = client.models.generate_content(
             model=MODEL, contents=contents, config=config
@@ -182,17 +240,40 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
             if part.text:
                 print(f"Thought: {part.text.strip()}")
 
-        # A) Dieu kien KET THUC: model khong goi tool nua -> text = Answer cuoi
+        # A) Model khong goi tool nua -> MUON ket thuc. Guardrail kiem tra TRUOC khi cho ra.
         if not response.function_calls:
-            return response.text
+            if "read_file" not in tools_called and rejections < MAX_REJECTIONS:
+                rejections += 1
+                print(f"[GUARDRAIL] Tu choi lan {rejections}: chua read_file file nao")
+                # Ghi so DUNG THU TU NHAN QUA: model noi gi TRUOC -> the gioi dap gi SAU.
+                # (Dao nguoc = so ke lao "model tra loi bat chap lenh tu choi" -> model hoc lao,
+                #  khong 400 nao bao - chet im lang kieu 3.)
+                contents.append(response.candidates[0].content)  # cau tra loi BI VUT van phai vao so
+                contents.append(
+                    types.Content(role="user", parts=[types.Part(text=GUARDRAIL_MSG)])
+                )
+                continue   # KHONG return - ep vong lap chay tiep tu Buoc 2
+
+            answer = response.text
+            if not answer:
+                # Answer rong = chet im lang -> mo hop den: model DUNG vi ly do gi?
+                cand = response.candidates[0]
+                print(f"[DEBUG] finish_reason={cand.finish_reason} | parts={cand.content.parts}")
+            return answer
 
         # B) Ghi QUYET DINH cua model vao "cuon so" TRUOC khi ghi ket qua tool
         # (API stateless - thieu luot nay la function_response mo coi -> loi 400)
         contents.append(response.candidates[0].content)
 
+        # Model duoc phep goi NHIEU tool trong 1 luot (parallel function calling).
+        # HOP DONG API: luot model co N function_call parts -> luot dap phai la
+        # MOT Content chua DUNG N function_response parts (khong phai N Content le).
+        # Vi pham -> 400 "number of function response parts..." (do that 5/7).
+        response_parts = []
         for fc in response.function_calls:
             args = dict(fc.args)  # args da la dict san - KHONG parse gi ca
             print(f"Action: {fc.name}({args})")
+            tools_called.add(fc.name)   # ghi trace: tool nay DA duoc goi that
 
             if fc.name in TOOLS:
                 # C) Goi tool that: ** bung dict args thanh keyword arguments
@@ -203,18 +284,29 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
 
             print(f"Observation: {observation[:200]}{'...' if len(observation) > 200 else ''}")
 
-            # Gui ket qua tool lai cho model: Part.from_function_response,
-            # dong vai luot 'user' (API Gemini chi co 2 role: user/model)
-            contents.append(
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_function_response(
-                        name=fc.name, response={"result": observation}
-                    )],
+            response_parts.append(
+                types.Part.from_function_response(
+                    name=fc.name, response={"result": observation}
                 )
             )
 
-    return f"Agent dung o max_steps={max_steps} ma chua co Answer cuoi (xem trace o tren)."
+        # Gom TAT CA ket qua tool cua luot nay vao 1 Content role 'user'
+        # (API Gemini chi co 2 role: user/model - ket qua tool doi mu 'user')
+        contents.append(types.Content(role="user", parts=response_parts))
+
+    # HET BUDGET nhung KHONG nop giay trang: findings da nam trong so (contents),
+    # ep 1 cu goi CHOT de model tong ket chung. Van la "model truoc - the gioi sau":
+    # luot model cuoi + function_response da duoc append trong vong lap roi.
+    print(f"\n[HARNESS] Het {max_steps} steps -> goi CHOT (khong tool) de tong ket findings")
+    contents.append(types.Content(role="user", parts=[types.Part(text=FINAL_SUMMARY_MSG)]))
+    final = client.models.generate_content(
+        model=MODEL,
+        contents=contents,
+        # config MOI, KHONG truyen tools: model het duong goi tool,
+        # chi con mot loi thoat duy nhat la tra loi bang text
+        config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+    )
+    return final.text or f"Agent dung o max_steps={max_steps} ma van khong tong ket duoc (xem trace)."
 
 
 if __name__ == "__main__":
