@@ -3,7 +3,7 @@
 > **Bắt đầu:** 17/6/2026 (Thứ Ba) · **Mục tiêu:** Nộp CV ~ giữa tháng 8/2026 (≈ 2 tháng)
 > **Cấu trúc:** 8.5 tuần — Tuần 1-7 học + xây dự án, **Tuần 8 = buffer chống trễ + luyện phỏng vấn + hoàn thiện CV**
 > **Thời gian/ngày:** 5+ giờ · **Dữ liệu thực hành:** repo `chatbot-fanpage` (đã clone tại `C:\Users\Pc\Desktop\chatbot-fanpage`)
-> **Cập nhật lần cuối:** 17/6/2026 (nâng cấp: giãn 2 tháng + thêm đáp án mẫu phỏng vấn)
+> **Cập nhật lần cuối:** 2/7/2026 — **REV lớn** (đóng băng retrieval, bỏ Coursera Tuần 4, thêm Seeded-Bug Benchmark + phễu chi phí 3 tầng, nâng ưu tiên MCP) — xem khối **🔴 REV 2/7** bên dưới
 
 > [!IMPORTANT]
 > **Đọc trước khi bắt đầu:** phần [📚 Cách Dùng Tài Liệu + Công Thức Trả Lời Phỏng Vấn](#-cách-dùng-tài-liệu--công-thức-trả-lời-phỏng-vấn) ngay bên dưới. Mỗi ngày học giờ có thêm khối **💬 Đáp án mẫu** để bạn học cách *nói* được kiến thức, không chỉ *hiểu*.
@@ -19,7 +19,7 @@ Sau khi rà soát kỹ thuật tính đến 16/6/2026, có **4 điểm lỗi th�
 | 1 | **`google-generativeai` SDK đã bị khai tử** (30/11/2025). File `mini_rag.py` vẫn dùng `import google.generativeai as genai` + `genai.configure()` | 🔴 Chặn | Chuyển sang `google-genai` SDK mới. Dùng `client = genai.Client()` thay `genai.configure()` |
 | 2 | **Model `gemini-1.5-flash` thuộc thế hệ cũ**. Gemini 2.0 đã shutdown 1/6/2026. Model hiện tại là `gemini-3.5-flash` | 🔴 Chặn | Đổi model name trong code sang `gemini-3.5-flash` |
 | 3 | **`all-MiniLM-L6-v2` vẫn chạy được** nhưng đã bị vượt xa về chất lượng. SOTA 2026: **Qwen3-Embedding** (đa ngữ, RoPE) dẫn đầu; VN chuyên biệt có **halong-embedding, vietnamese-bi-encoder (bkai)**, BGE-M3. Đã có benchmark VN riêng **VN-MTEB** | 🟡 Không chặn | Giữ MiniLM cho tuần 1 (nhẹ, CPU, học). Tuần 2 upgrade + **đo trên golden set tiếng Việt của mình** (không tin leaderboard chung) — xem [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục A8 |
-| 4 | **IBM Coursera đã có 10 khóa** (thêm khóa 9: MCP — Model Context Protocol, khóa 10: Capstone). Lộ trình cũ chỉ tính 8 khóa | 🟡 Điều chỉnh | Với 7 ngày trial, chỉ học 4–5 khóa quan trọng nhất, bỏ multimodal + capstone |
+| 4 | **IBM Coursera đã có 10 khóa** (thêm khóa 9: MCP — Model Context Protocol, khóa 10: Capstone). Lộ trình cũ chỉ tính 8 khóa | 🟡 Điều chỉnh | ~~Với 7 ngày trial, chỉ học 4–5 khóa quan trọng nhất~~ **(REV 2/7: BỎ hẳn tuần Coursera — xem khối 🔴 REV bên dưới)** |
 
 > **CẬP NHẬT 17/6/2026 (đã kiểm tra code thật):** `mini_rag.py` **ĐÃ được cập nhật sẵn** sang SDK `google-genai` mới (`from google import genai` + `genai.Client()` + `model="gemini-3.5-flash"`, xem dòng 241-253). Vì vậy buổi chiều Ngày 1 **không cần viết lại SDK** nữa — thay bằng **đọc-hiểu + xác minh chạy được** (so sánh SDK cũ vs mới). Môi trường `venv` cũng đã cài đủ `numpy`, `tiktoken`, `sentence-transformers`, `google-genai`; mắt xích duy nhất còn thiếu là biến môi trường `GEMINI_API_KEY` (set bằng `$env:GEMINI_API_KEY = "..."`).
 >
@@ -27,6 +27,15 @@ Sau khi rà soát kỹ thuật tính đến 16/6/2026, có **4 điểm lỗi th�
 
 > [!NOTE]
 > **🆕 Track Beyond-RAG (bổ sung 22/6/2026):** sau khi rà bài nghiên cứu *"Beyond RAG"*, đã chắt **7 món Tầng 1** (rẻ, ăn điểm CV) gấp vào lộ trình — xem section cuối file [🆕 Tích Hợp Beyond-RAG (Tầng 1)](#-tích-hợp-beyond-rag-tầng-1). Phần nặng cấp Enterprise (GraphRAG/RAPTOR/vLLM) để ở doc riêng [beyond-rag-phase-2.md](beyond-rag-phase-2.md) — track *sau CV*.
+
+> [!IMPORTANT]
+> **🔴 REV 2/7/2026 — rà soát nghiêm túc + tra web (SOTA & nghiên cứu tuyển dụng 2026), 5 thay đổi lớn:**
+>
+> 1. **ĐÓNG BĂNG retrieval ở precision@3 = 60%** (Ngày 9–15 đã xong vai trò). Lý do đã kiểm chứng: ngành chuyển sang **agentic search** (grep/read loop) cho code — chính Claude Code bỏ vector DB (5/2025, Boris Cherny: *"agentic search generally works better"*); top SWE-bench 2026 không hệ nào dùng vector retrieval trên repo đích. Lỗi verifySig/RBAC của ta đúng lớp lỗi grep trị tận gốc. RAG giữ làm **1 tool ngữ nghĩa** trong agent. **Backlog (không xếp lịch):** Voyage instruction-following reranker, query VN→EN, mở rộng golden set retrieval. **Câu chuyện phỏng vấn:** *"tôi tự đo được giới hạn dense retrieval trên code → đó là lý do ngành chuyển sang agentic search"*.
+> 2. **BỎ hẳn Tuần 4 Coursera** (cert = tín hiệu yếu 2026 so với dự án ship + eval) → thay bằng **Auditor v1 + Seeded-Bug Benchmark** (xem TUẦN 4 mới). LangGraph/MCP học qua docs chính thức 30–60'/tối.
+> 3. **Định vị lại sản phẩm:** auditor **XUẤT BÁO CÁO FINDINGS** (schema JSON, citation file:line), KHÔNG phải Q&A trên code. Thước đo chính của CV = **detection recall + false-positive rate trên repo cấy lỗi** ("spiked repository" — phương pháp chuẩn ngành 2026), thay vai precision@3.
+> 4. **MCP nâng ưu tiên:** từ 7/2026 MCP là chuẩn ngành (Linux Foundation; OpenAI/Google/Microsoft đồng bảo trợ; 97M SDK downloads/tháng; 41% doanh nghiệp production) → expose auditor như **MCP server** ở Tuần 5, KHÔNG còn nằm đầu danh sách cắt.
+> 5. **Thị trường mục tiêu: công ty VN product + AI startup** → CV song ngữ, **README tiếng Anh**, **Streamlit UI + demo chạy được** (Tuần 6). AWS giữ mức đọc-hiểu 30'/tối, không tăng.
 
 ---
 
@@ -735,9 +744,16 @@ Thí nghiệm: tạo 2 collection riêng trong ChromaDB — `code_chunks` và `d
 
 > Lộ trình cũ đặt Agent ở tuần 4. Đẩy lên tuần 3 vì: (1) phần hấp dẫn nhất, giữ động lực; (2) cần thời gian nhiều hơn cho multi-agent + MCP ở tuần sau.
 
+> [!IMPORTANT]
+> **REV 2/7 cho Tuần 3:**
+> 1. Lịch trượt +1 ngày: **Ngày 15 bắt đầu Thứ Tư 2/7** (1/7 đã dùng cho Ngày 14 metadata filter).
+> 2. **Retrieval ĐÓNG BĂNG** — `rag_search` từ nay chỉ là 1 tool ngữ nghĩa của agent (cho câu hỏi concept), KHÔNG tối ưu tiếp.
+> 3. **Dùng structured output NGAY TỪ ĐẦU** (function calling / JSON schema — Món 5 kéo lên): code mẫu bên dưới parse `Action:` bằng regex chỉ để HIỂU pattern ReAct; bản bạn viết nên ép schema từ Ngày 15 để khỏi vá sau (regex parse là bug runtime có thật).
+> 4. Model cho agent loop: **`gemini-2.5-flash-lite`** (loop gọi LLM nhiều lần, đừng đốt tiền bằng 3.5-flash).
+
 ---
 
-### Ngày 15 (Thứ Ba 1/7) — Pattern ReAct: Hiểu trước khi code
+### Ngày 15 (Thứ Tư 2/7) — Pattern ReAct: Hiểu trước khi code
 
 **Thời gian:** 5h · **Track:** Code tay
 
@@ -773,7 +789,7 @@ AGENT LOOP:
 import os, re, subprocess, json, time
 from google import genai
 
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+client = genai.Client()  # dual-mode: tự đọc env (Vertex hoặc GEMINI_API_KEY) — như call_gemini
 CODEBASE_DIR = "path/to/chatbot-fanpage"
 
 # --- TOOLS ---
@@ -834,7 +850,7 @@ def run_agent(question, max_steps=6):
     
     for step in range(max_steps):
         response = client.models.generate_content(
-            model="gemini-3.5-flash", contents=messages
+            model="gemini-2.5-flash-lite", contents=messages  # REV 2/7: model rẻ cho loop
         )
         reply = response.text.strip()
         messages += reply + "\n"
@@ -869,7 +885,7 @@ if __name__ == "__main__":
 
 ---
 
-### Ngày 16 (Thứ Tư 2/7) — Debug agent, thêm tool
+### Ngày 16 (Thứ Năm 3/7) — Debug agent, thêm tool
 
 **Thời gian:** 5h
 
@@ -888,7 +904,7 @@ def run_tests_tool(test_file=""):
 
 ---
 
-### Ngày 17 (Thứ Năm 3/7) — Kết hợp RAG + Agent
+### Ngày 17 (Thứ Sáu 4/7) — Kết hợp RAG + Agent
 
 **Thời gian:** 5h
 
@@ -907,7 +923,7 @@ Giờ agent CHỌN giữa: grep (exact match) vs rag_search (semantic) vs read_f
 
 ---
 
-### Ngày 18–19 (Thứ Sáu–Thứ Bảy 4–5/7) — Logging + Bài tập tương tự
+### Ngày 18–19 (Thứ Bảy–Chủ Nhật 5–6/7) — Logging + Bài tập tương tự
 
 **Thời gian:** 5h x 2
 
@@ -926,29 +942,61 @@ def log_llm_call(step, prompt_tokens, output_tokens, latency_ms, tool_used):
 
 **Bài tập tương tự:** Viết agent cho bài toán khác — agent đọc CSV và trả lời câu hỏi thống kê (tool `read_csv` + `calculate`). Chứng minh pattern ReAct là tổng quát.
 
-### Ngày 20–21 (Chủ Nhật–Thứ Hai 6–7/7) — Ôn + Commit
+### Ngày 20–21 (Thứ Hai–Thứ Ba 7–8/7) — Ôn + Commit
 
 ---
 
-## TUẦN 4: IBM Coursera Sprint (7 ngày trial)
+## TUẦN 4 (REV 2/7): Auditor v1 + Seeded-Bug Benchmark (9–15/7)
 
-**Mục tiêu:** Học 5 khóa quan trọng nhất trong 7 ngày free trial.
+> **Thay thế hoàn toàn tuần IBM Coursera cũ.** Lý do (quyết định 2/7, sau khi tra nghiên cứu tuyển dụng 2026): chứng chỉ là tín hiệu yếu so với dự án ship + eval — *"CV không nhắc eval là bị loại ở công ty nghiêm túc"*; 7 ngày này là quỹ thời gian quý nhất còn lại trước deadline. **LangGraph + MCP chuyển sang đọc docs chính thức 30–60 phút/tối** trong tuần này (bạn đã tự build agent loop nên đọc docs sẽ rất nhanh — vẫn giữ thói quen ghi "cái này tương đương hàm nào tôi tự viết?" vào NOTES.md).
 
-> **QUAN TRỌNG:** Đăng ký trial ngày 8/7 (Thứ Ba). Trial hết hạn 14/7.
+**Mục tiêu tuần:** Biến "Q&A trên code" thành **auditor thật** — tự quét, xuất báo cáo findings có citation — và dựng **thước đo chính của CV: seeded-bug benchmark**.
 
-| Ngày trial | Khóa | Thời gian | Ghi chú |
-|-----------|------|-----------|---------|
-| 1 (8/7) | Khóa 1: Develop GenAI Apps: Get Started | 3-4h | Đối chiếu với `call_gemini` đã viết |
-| 2 (9/7) | Khóa 2: Build RAG Applications | 4-5h | **Quan trọng nhất** — map về `mini_rag.py` |
-| 3 (10/7) | Khóa 3: Vector DBs for RAG | 3-4h | Đối chiếu ChromaDB tuần 2 |
-| 4 (11/7) | Khóa 6: Fundamentals of Building AI Agents | 4-5h | Đối chiếu `agent.py` tuần 3 |
-| 5 (12/7) | Khóa 7: Agentic AI with LangChain + LangGraph | 5h | **Framework chính** cho tuần 5 |
-| 6 (13/7) | Khóa 9: Build AI Agents using MCP | 4h | **Concept mới 2026** |
-| 7 (14/7) | Buffer / Hoàn thành quiz / Lấy chứng chỉ | 3-4h | Pass tất cả quiz |
+> 🧭 **Góc Architect:** đây là tuần "reframe sản phẩm" — auditor ≠ chatbot. Ôn lại B1 Evaluation + B4 Build-vs-Buy trong [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md).
 
-**Bỏ qua:** Khóa 4 (đã tự đo precision), Khóa 5 (Multimodal), Khóa 8 (CrewAI/AutoGen — lướt nếu dư thời gian), Khóa 10 (Capstone).
+### Ngày 22 (Thứ Tư 9/7) — Định vị lại sản phẩm + thiết kế audit checklist
 
-Mỗi khái niệm LangChain/LangGraph học xong, mở `mini_rag.py` hoặc `agent.py` và ghi: "cái này tương đương hàm nào tôi đã tự viết?" Ghi vào NOTES.md.
+- **Reframe:** auditor KHÔNG chờ câu hỏi. Input = đường dẫn repo; output = **báo cáo findings**. Mỗi finding theo schema JSON cố định (structured output — Món 5): `{id, severity, category, file, line_range, evidence, explanation, suggestion}`.
+- Thiết kế **audit checklist** từ chính kinh nghiệm vận hành chatbot-fanpage: secret hardcode, so sánh chữ ký không timing-safe, credential log ra console, doc–code lệch nhau, dependency lỗi thời, endpoint thiếu auth, input không validate...
+- Agent Tuần 3 (grep/read/list/rag_search) **giữ nguyên** — chỉ đổi "câu hỏi user" thành "từng mục checklist".
+
+### Ngày 23 (Thứ Năm 10/7) — Auditor v1 chạy end-to-end
+
+Chạy trọn checklist trên `chatbot-fanpage` → gom findings → render báo cáo Markdown (bảng findings theo severity + citation `file:line`). Log token/chi phí **cho từng mục checklist** (nối logging Ngày 18–19) → biết mục nào đắt.
+
+### Ngày 24 (Thứ Sáu 11/7) — Cấy lỗi: dựng "spiked repository"
+
+- **Phương pháp chuẩn ngành 2026** (spiked repository — inject lỗi biết trước vào codebase THẬT, không tự bịa codebase fake): fork `chatbot-fanpage` → **cấy 15–20 lỗi**, rải 4–5 nhóm: (a) secret hardcode, (b) crypto sai (`==` thay `timingSafeEqual`, IV tái dùng), (c) doc–code mismatch, (d) auth/RBAC hổng, (e) dependency có CVE.
+- Ghi **golden set findings**: mỗi lỗi cấy = 1 record `{file, line, category, mô tả}` — "đáp án vàng" mới của dự án (thay vai golden set retrieval 5 câu).
+- ⚠️ Cấy lỗi **giống thật** (KHÔNG comment `// BUG HERE`); vài lỗi phải cần suy luận cross-file mới thấy — để phân tầng độ khó.
+
+### Ngày 25 (Thứ Bảy 12/7) — Đo: detection recall + false-positive rate
+
+- **Recall** = số lỗi cấy tìm được / tổng lỗi cấy. **FP rate** = findings sai / tổng findings.
+- Đây là **số liệu CV chính** thay precision@3: *"Auditor phát hiện X/Y lỗi cấy chủ đích, false-positive Z%, có citation từng finding."*
+- Chấm nửa tự động: match `file + line_range ±5 dòng + category`; case mơ hồ tự đọc (bài học Ngày 12: bộ lọc test lỏng = bug giả dạng).
+
+### Ngày 26 (Chủ Nhật 13/7) — Phễu chi phí 3 tầng (L0 → L1 → L2)
+
+- **L0 — Deterministic (miễn phí, quét cả repo):** regex/AST/lint bắt secret, `==` signature compare, dependency cũ. KHÔNG tốn token nào.
+- **L1 — Agentic grep (rẻ):** agent khoanh vùng nghi vấn bằng grep/read, chỉ mở file liên quan.
+- **L2 — LLM deep review (đắt, CHỈ vùng nghi vấn):** suy luận cross-file (doc khớp code? auth boundary hổng?).
+- **Đo $/audit + recall/FP theo từng tầng** → bảng trade-off. Khớp phát hiện ngành: *LLM tăng recall, công cụ deterministic kìm false-positive*. Đúng nguyên tắc B4: đừng dùng LLM cho việc một hàm thường giải được.
+
+### Ngày 27–28 (Thứ Hai–Thứ Ba 14–15/7) — LLM-as-judge cho findings + ôn + commit
+
+- Món 4 (RAG Triad) **chuyển hóa cho auditor**: judge chấm mỗi finding theo **Groundedness** (evidence có thật trong code?) + **Actionability** (suggestion sửa được không?). So kết quả judge vs chấm tay trên tập cấy → báo luôn độ lệch judge (meta-eval).
+- Ôn tuần, NOTES.md, commit. Tối: chốt docs LangGraph (StateGraph, checkpointing, conditional edges) chuẩn bị Tuần 5.
+
+> #### 💬 Đáp án mẫu phỏng vấn — Tuần 4
+>
+> **Hỏi: "Làm sao bạn biết auditor của bạn TỐT? AI bảo code có lỗi thì tin được không?"**
+>
+> *"Tôi không tin cảm giác — tôi dựng benchmark. Tôi fork một codebase production thật và cấy 15–20 lỗi biết trước thuộc 5 nhóm (secret, crypto, auth, doc-lệch-code, dependency), rồi đo 2 số: **detection recall** (tìm được bao nhiêu lỗi cấy) và **false-positive rate** (báo láo bao nhiêu). Đây là phương pháp 'spiked repository' mà các benchmark ngành 2026 dùng. **Đánh đổi:** benchmark lỗi-cấy chỉ đo được loại lỗi mình nghĩ ra để cấy — nên tôi chạy thêm auditor trên OWASP NodeGoat, nơi lỗi do bên thứ ba document, để kiểm chứng độc lập."*
+>
+> **Hỏi: "Vì sao không cho LLM quét thẳng cả repo cho nhanh?"**
+>
+> *"Vì đắt và nhiễu. Tôi thiết kế phễu 3 tầng theo chi phí: tầng deterministic (regex/AST, miễn phí) bắt lớp lỗi máy móc như secret hardcode; tầng agentic grep (rẻ) khoanh vùng nghi vấn; LLM (đắt) chỉ vào nơi cần suy luận cross-file. Tôi đo $/audit từng tầng — LLM-quét-toàn-bộ đắt gấp N lần mà false-positive cao hơn."*
 
 ---
 
@@ -957,40 +1005,43 @@ Mỗi khái niệm LangChain/LangGraph học xong, mở `mini_rag.py` hoặc `ag
 > [!TIP]
 > **Tài liệu tham khảo:** Đọc Phần I (Cấp độ 4), Phần IV (OpenRouter vs Gemini API) và Phần V của [Bản Đồ Quyết Định Công Nghệ & Chi Phí](file:///c:/Users/Pc/Desktop/Build%20CV/ai-code-auditor/docs/ban-do-cong-nghe-chi-phi.md) để so sánh các nhà cung cấp mô hình và học cách tích hợp Streamlit UI cho dự án.
 
-**Mục tiêu tuần:** Tách agent thành 2–3 agent phối hợp, dùng LangGraph.
+**Mục tiêu tuần (REV 2/7):** Chuyển auditor sang LangGraph với **ĐÚNG 2 agent** (Auditor + Reviewer/Validator), thêm observability, và **expose MCP server**. Kiềm chế: KHÔNG router/multi-agent 3–4 vai — nguyên tắc đỉnh tháp (single agent + tools là đủ cho đa số; multi-agent chỉ khi vai trò thật sự tách bạch).
 
 > 🧭 **Góc Architect:** [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **A7 · C3 Capstone điều phối (L4)** — nhớ nguyên tắc đỉnh tháp: kiềm chế, chỉ multi-agent khi vai trò thật sự tách bạch.
 
-### Ngày 29 (Thứ Ba 15/7) — Setup LangGraph project
+### Ngày 29 (Thứ Năm 16/7) — Setup LangGraph project
 
 ```bash
 pip install langgraph langchain-google-genai
 ```
 
-### Ngày 30–31 (16–17/7) — Tách ai-code-auditor thành 2–3 agent
+Map khái niệm về code tay đã viết (ghi NOTES.md): StateGraph ↔ vòng `for` + biến `messages` trong `agent.py`; checkpoint ↔ log jsonl; conditional edge ↔ `if "Answer:" in reply`.
 
-Kiến trúc:
+### Ngày 30–31 (Thứ Sáu–Thứ Bảy 17–18/7) — Auditor + Reviewer trên LangGraph
+
+Kiến trúc (REV 2/7 — 2 agent, BỎ Router/CodeFinder/Explainer):
 ```
-User Question
-     |
-     v
-[Router Agent] -> Quyết định route câu hỏi
-     |
-  +--+--+
-  v     v
-[Code   [Explain
-Finder]  Agent] -> Nhận chunks, viết câu trả lời
-  |        |
-  |   [Reviewer] -> Kiểm tra answer có khớp evidence
-  |
-  +-> Tools: grep, read_file, rag_search, run_tests
+Repo path + audit checklist
+        |
+        v
+ [Auditor Agent] --tools--> grep, read_file, list_files, rag_search
+        |  findings (JSON schema — Món 5)
+        v
+ [Reviewer/Validator] -> đối chiếu TỪNG finding với evidence trong code
+        |                 (Món 3: generator-validator; số học đẩy Python sandbox)
+        v
+  PASS -> báo cáo cuối  |  FAIL -> trả critique có cấu trúc cho Auditor sửa (tối đa 2 vòng)
 ```
 
-### Ngày 32–33 (18–19/7) — MCP integration (nếu kịp)
+**Đo lại seeded-bug benchmark SAU khi thêm Reviewer:** kỳ vọng false-positive rate giảm → số CV thứ hai ("Reviewer agent giảm FP từ A% xuống B%").
 
-MCP (Model Context Protocol) là chuẩn mới 2025–2026. Expose tools qua MCP protocol để bất kỳ AI client nào cũng gọi được. Nếu bạn học kịp Coursera khóa 9, implement ở đây. Nếu không, bỏ qua.
+### Ngày 32–33 (Chủ Nhật–Thứ Hai 19–20/7) — MCP server (REV 2/7: CHÍNH THỨC, không còn "nếu kịp")
 
-### Ngày 34–35 (20–21/7) — Testing multi-agent + commit
+MCP đã là chuẩn ngành (Linux Foundation, spec final 7/2026, 97M SDK downloads/tháng, 41% doanh nghiệp production). Expose auditor qua **FastMCP**: tool `audit_repo(path)` + `get_finding(id)` → bất kỳ MCP client nào (Claude Desktop, Claude Code...) gọi được auditor của bạn. ~1 ngày vì tools đã có sẵn; ngày còn lại: test từ client thật + quay demo GIF cho README.
+
+### Ngày 34–35 (Thứ Ba–Thứ Tư 21–22/7) — Observability (Món 7) + testing + commit
+
+Arize Phoenix (open-source, chạy local) hoặc LangSmith free tier: trace từng bước agent, bắt loop thừa / token đốt ở đâu. Chốt bộ số vận hành: latency/audit, $/audit, số bước agent trung bình.
 
 ---
 
@@ -998,7 +1049,7 @@ MCP (Model Context Protocol) là chuẩn mới 2025–2026. Expose tools qua MCP
 
 > 🧭 **Góc Architect:** [Bản Đồ Phán Đoán Architect](ban-do-phan-doan-architect.md) mục **B3 Deploy (🟢)** + đọc-để-biết **B2 Security · B4 Build-vs-Buy (🔵)** — gắn với audit thật chatbot-fanpage (tìm hardcode secret).
 
-### Ngày 36–37 (Thứ Ba–Thứ Tư 22–23/7) — Docker + Deploy
+### Ngày 36–37 (Thứ Năm–Thứ Sáu 23–24/7) — Docker + Deploy
 
 ```dockerfile
 FROM python:3.12-slim
@@ -1011,21 +1062,24 @@ CMD ["python", "agent.py"]
 
 Deploy lên Railway (đồng bộ platform với chatbot-fanpage).
 
-### Ngày 38–39 (24–25/7) — Audit thật chatbot-fanpage
+### Ngày 38 (Thứ Bảy 25/7) — Audit thật chatbot-fanpage (bản GỐC, không phải fork cấy lỗi)
 
-Dùng agent chạy câu hỏi audit:
-- "File nào lớn nhất và nên tách ra?"
-- "Có chỗ nào hardcode secret không?"
-- "README mô tả SHOP_ID mặc định có khớp với code không?"
+Chạy full auditor → đọc báo cáo findings → **sửa các lỗi THẬT** tìm được trong chatbot-fanpage. Đọc kỹ code trước khi sửa; commit message giải thích rõ vì sao. Findings thật + fix thật trên hệ production = câu chuyện demo sống (hai dự án tự khóa vào nhau).
 
-Mở chatbot-fanpage ra sửa. Đọc kỹ code trước khi sửa. Commit message giải thích rõ vì sao.
+### Ngày 39 (Chủ Nhật 26/7) — Kiểm chứng ngoài: OWASP NodeGoat (REV 2/7)
 
-### Ngày 40–42 (26–28/7) — README + Architecture doc
+Chạy auditor trên **OWASP NodeGoat** (app Node.js cố tình chứa OWASP Top 10, từng lỗi được document sẵn) → báo *"phát hiện X/Y lỗi đã document"*. Đây là số liệu **bên thứ ba kiểm chứng được** — chứng minh auditor không overfit vào repo nhà (benchmark cấy lỗi chỉ đo được loại lỗi mình nghĩ ra để cấy).
 
-Viết README.md cho `ai-code-auditor`:
-- Mục tiêu dự án, kiến trúc (sơ đồ agent)
-- Số liệu: precision@3, thời gian phản hồi, số chunk indexed
-- Cách chạy, link tới chatbot-fanpage như case study
+### Ngày 40 (Thứ Hai 27/7) — Streamlit UI (REV 2/7)
+
+UI tối thiểu: nhập repo path → chạy audit → bảng findings (severity, category, `file:line`, evidence) → click xem chi tiết + citation. Bar portfolio 2026 yêu cầu "working UI + live demo" — công ty VN product càng nặng "demo bấm được".
+
+### Ngày 41–42 (Thứ Ba–Thứ Tư 28–29/7) — README TIẾNG ANH + Architecture doc (REV 2/7)
+
+Viết README.md cho `ai-code-auditor` **bằng tiếng Anh** (người screen CV nào cũng đọc GitHub bằng EN; CV nộp thì song ngữ):
+- Mục tiêu dự án, kiến trúc (sơ đồ 2-agent + phễu chi phí L0→L2), demo GIF (kể cả gọi qua MCP client)
+- Số liệu: **seeded-bug recall + FP rate** (trước/sau Reviewer), **NodeGoat X/Y**, **$/audit theo tầng**, latency/audit; precision@3 60% ghi như *"bài học đo giới hạn dense retrieval trên code → lý do chuyển agentic search"*
+- Cách chạy (CLI, UI, MCP), link chatbot-fanpage như case study production
 
 ---
 
@@ -1042,12 +1096,19 @@ Viết README.md cho `ai-code-auditor`:
 - Quản lý codebase 226 commits, 945 tests pass, multi-tenant
 ```
 
-**Dự án 2 (ai-code-auditor):**
+**Dự án 2 (ai-code-auditor)** *(REV 2/7 — điền số thật sau Tuần 4–6)*:
 ```
-- Xây RAG pipeline từ zero: chunking, embedding, vector search,
-  prompt grounding (precision@3 từ ??% lên ??%)
-- Multi-agent system (LangGraph): Code Finder + Explainer + Reviewer
-- Deploy Docker/Railway, logging chi phí/latency cho mỗi LLM call
+- Build AI Code Auditor (LangGraph 2-agent + MCP server): tự quét repo,
+  xuất báo cáo findings có citation — detection recall X/Y lỗi cấy,
+  false-positive Z% trên spiked-repo benchmark tự dựng; Reviewer agent
+  giảm FP từ A% xuống B%
+- Phễu audit 3 tầng theo chi phí (AST/regex -> agentic grep -> LLM deep
+  review): $/audit giảm N lần so với LLM-quét-toàn-bộ
+- Build RAG từ zero + đo giới hạn dense retrieval trên code (precision@3
+  kẹt 60% sau rerank/hybrid trên golden set tự dựng) -> chuyển agentic
+  search — trùng kết luận ngành 2026
+- Deploy Docker/Railway + Streamlit UI + observability trace; kiểm chứng
+  ngoài trên OWASP NodeGoat (X/Y lỗi documented)
 ```
 
 ### Ngày 45–46 (31/7–1/8) — Luyện giải thích 5 phút
@@ -1070,6 +1131,8 @@ Dựa trên NOTES.md, quay video tự giải thích mỗi dự án 5 phút, xem 
 | 10 | Giải thích luồng từ khi user hỏi đến agent trả lời? |
 | 11 | Context window 1M token rồi, RAG còn cần không? (long-context vs RAG) |
 | 12 | GraphRAG là gì, khi nào chọn thay vì RAG thường? |
+| 13 | Làm sao bạn biết auditor của bạn tốt? (→ 💬 Tuần 4: seeded-bug benchmark) |
+| 14 | Vì sao không cho LLM quét thẳng cả repo? (→ 💬 Tuần 4: phễu chi phí 3 tầng) |
 
 ---
 
@@ -1130,7 +1193,7 @@ Dựa trên NOTES.md, quay video tự giải thích mỗi dự án 5 phút, xem 
 Hoàn thành nốt bất kỳ mục nào còn dang dở của Tuần 1-7 (ưu tiên theo mục "Điểm Cắt Nếu Trễ Tiến Độ" bên dưới — làm ngược lại: bù phần quan trọng trước). Nếu không trễ gì → dùng để thêm 1 tính năng nhỏ gây ấn tượng (vd hiển thị citation đẹp trên UI).
 
 ### Ngày 52–53 — Đánh bóng dự án & CV
-- Rà lại README `ai-code-auditor`: có sơ đồ kiến trúc, số liệu (precision@3, latency, chi phí/query, số chunk) chưa.
+- Rà lại README `ai-code-auditor` (tiếng Anh): có sơ đồ kiến trúc (2-agent + phễu L0→L2), số liệu (seeded-bug recall + FP rate, NodeGoat X/Y, $/audit theo tầng, latency; precision@3 60% như "bài học giới hạn dense retrieval") chưa.
 - Chốt 2 bullet CV cho mỗi dự án (xem Ngày 43-44), điền số thật.
 - Dọn git: commit message rõ ràng, xóa file rác, đảm bảo repo public chạy được theo README.
 
@@ -1158,25 +1221,31 @@ Dự phòng. Khi mọi thứ sẵn sàng → nộp CV, gửi link GitHub + READM
 
 ---
 
-## Điểm Cắt Nếu Trễ Tiến Độ
+## Điểm Cắt Nếu Trễ Tiến Độ (REV 2/7 — đã đảo thứ tự)
 
 Cắt từ trên xuống:
-1. **MCP integration (tuần 5)** — concept mới nhưng không bắt buộc cho CV fresher
-2. **Agent phản biện thứ 3 (tuần 5)** — giữ 2 agent đủ
-3. **So sánh embedding model (ngày 10)** — giữ 1 model cũng OK
-4. **Coursera khóa 9 (MCP)** — bỏ nếu không kịp 7 ngày
+1. **NodeGoat external validation (Ngày 39)** — nice-to-have; benchmark cấy lỗi đã đủ số CV
+2. **Observability tool (Ngày 34–35)** — fallback: giữ logging jsonl tự viết
+3. **LLM-as-judge cho findings (Ngày 27–28)** — fallback: chấm tay trên tập cấy vẫn đủ
+4. **Streamlit UI (Ngày 40)** — fallback: báo cáo Markdown đẹp + screenshot trong README
+5. **Vòng critique Reviewer→Auditor (Tuần 5)** — fallback: Reviewer chấm 1 chiều, bỏ vòng lặp sửa
+
+*(AWS buổi tối / Memory module / Demo #2 vốn đã NGOÀI đường tới CV — nếu lỡ nhồi lại lịch thì cắt các mục đó TRƯỚC TIÊN, trước cả danh sách trên.)*
 
 **KHÔNG CẮT:**
-- Tuần 1 (RAG tự tay) — nền tảng mọi thứ
-- Agent cơ bản (tuần 3) — câu chuyện CV chính
-- Deploy (tuần 6) — nhà tuyển dụng muốn thấy production
-- Precision@3 (tuần 2) — số liệu cụ thể cho CV
+- Tuần 1–2 (RAG tay + eval) — nền tảng + câu chuyện "đo giới hạn dense retrieval"
+- Agent cơ bản (Tuần 3) — xương sống của auditor
+- **Seeded-bug benchmark (Tuần 4) — SỐ LIỆU CV CHÍNH, mất nó là mất điểm khác biệt**
+- **MCP server (Tuần 5)** — chuẩn ngành 2026, chỉ ~1 ngày công *(REV: mục này TRƯỚC ĐÂY đứng đầu danh sách cắt — đã đảo vì MCP nay là chuẩn Linux Foundation)*
+- Deploy (Tuần 6) — nhà tuyển dụng muốn thấy production
 
 ---
 
 ## Học Bổ Sung Song Song: AWS Base Knowledge
 
 > **Triết lý:** Học để **hiểu nền tảng cloud**, không phải để thi cert hay bắt buộc dùng AWS. Giống học cosine similarity để hiểu embedding — biết luôn tốt hơn không biết. Thời gian: **~30 phút/ngày buổi tối**, không thay thế dự án chính.
+>
+> **⚠️ REV 2/7 — lịch tối cụ thể (tối nào AWS, tối nào DSA/docs) xem [lich-hoc-buoi-toi.md](lich-hoc-buoi-toi.md) — nguồn duy nhất.** AWS **tạm dừng 9–22/7** (nhường slot cho docs LangGraph/MCP thay tuần Coursera đã bỏ), quay lại từ 22/7. Section này chỉ giữ vai **nội dung + tài nguyên** AWS.
 
 ### Tại sao AWS khớp với dự án này
 
@@ -1265,4 +1334,54 @@ Cắt từ trên xuống:
 - **3 câu:** "Log token/latency" thành "tôi **trace** được từng bước agent, bắt nút thắt + loop vô hạn" → đổi từ `print`/jsonl sang công cụ trace. **KHÔNG dùng** khi chạy 1 phát rồi bỏ.
 - **Công sức:** ~0.5 ngày. Biến 1 dòng CV thành "production-minded".
 
-> **Điểm cắt nếu trễ (bổ sung cho mục "Điểm Cắt Nếu Trễ Tiến Độ"):** giữ Món 1 (rerank) + Món 4 (RAG Triad) + Món 6 (0 code) vì ăn điểm CV nhất; cắt trước Món 7 (observability) → Món 5 (constrained decoding) → Món 2 (CRAG) nếu thiếu thời gian.
+> **Điểm cắt nếu trễ (REV 2/7):** Món 1 (rerank) ĐÃ XONG (Ngày 11). Món 5 (structured output) nay **BẮT BUỘC từ Ngày 15** (schema findings của auditor — không cắt được). Món 6 (0 code) giữ. Thứ tự cắt mới: **Món 2 (CRAG)** trước tiên — retrieval đã đóng băng, evaluator tự chấm retrieval ít giá trị → **Món 7 (observability**, fallback jsonl) → **Món 4 (judge**, fallback chấm tay).
+
+---
+
+## 🧠 MODULE BỔ SUNG — Tầng Memory cho Agent (Agent có trí nhớ dài hạn)
+
+> **Vì sao thêm (chốt 29/6):** đối chiếu bản đồ hệ-agent production (video "4 AI buzzwords"), lộ trình đã phủ kín 2 ô NGÁCH (**retrieval** + **LLM Ops/eval**) nhưng thiếu **tầng memory đầy đủ** — *episodic memory* (lịch sử hội thoại) + *consolidation/summarizer*. Đây là ô **KỀ** (không phải lõi ngách retrieval/eval) nên **KHÔNG nằm trên đường tới CV** — build để *đi làm khỏi học gấp*, hiểu sâu lúc còn học. **Slot linh hoạt:** chèn sau **Tuần 5** (khi agent đã có tool + LangGraph) hoặc đẩy sang **tháng 9**. ~2–3 buổi. Lý thuyết đã ghi sẵn ở `NOTES.md` mục "TẦNG MEMORY".
+
+### Buổi M1 — Episodic Memory: "RAG cho liên quan + SQL cho gần đây"
+- **Bài toán:** Agent stateless — mỗi lần chạy quên sạch. Nhồi hết lịch sử chat vào context thì tốn token + lost-in-the-middle. Cần trí nhớ NGOÀI, lấy ra ĐÚNG phần cần.
+- **Build:** lưu mỗi lượt hội thoại vào **SQLite** (cột `timestamp`) + embed vào vector store (tái dùng `mini_rag`/Chroma). Khi có câu mới: lấy **k lượt LIÊN QUAN** (RAG cosine) + **m lượt GẦN NHẤT** (SQL `ORDER BY ts DESC`) → ghép context. Đúng nhánh "RAG for relevance + SQL for recency" trên bản đồ; xác nhận note Ngày 2 (exact/recency → DB).
+- **Đo / KHÔNG dùng:** hỏi câu tham chiếu lượt cũ ("lúc nãy tôi nói shop tên gì?") — có episodic thì trả đúng, không thì bịa. **KHÔNG dùng** khi hội thoại 1 lượt.
+- **Công sức:** ~1 buổi. Lấy `SQLiteDocumentStore` của `support-rag-assistant` làm mẫu (đừng copy — đọc rồi viết lại).
+
+### Buổi M2 — Consolidation + Summarizer Agent (gộp chat → facts)
+- **Bài toán:** episodic chứa chat THÔ phình vô hạn → retrieval chậm + nhiễu + vẫn tốn token.
+- **Build:** sau **N lượt**, một **summarizer agent dùng model RẺ** (gemini-flash-lite / DeepSeek) chắt lượt cũ thành **facts bền** ("user tên A, shop bán cà phê") → đẩy vào **semantic memory**; lượt thô archive. Đúng ô "Summarizer Agent (cheaper models) → distill into facts" trên bản đồ.
+- **Đánh đổi / KHÔNG dùng:** summarize CÓ mất mát — chi tiết nén đi có thể cần lại; chỉ gộp khi lịch sử đủ dài. Cân N (sớm = mất chi tiết; muộn = phình).
+- **Công sức:** ~0.5–1 buổi. 💬 Câu phỏng vấn vàng: *"vì sao summarizer dùng model rẻ, không dùng model chính?"* → tác vụ dễ (tóm tắt) + chạy nền nhiều lần ⇒ tối ưu chi phí (nối Ngày 6).
+
+### (Tùy chọn) Buổi M3 — Procedural Memory / Skills
+- **3 câu:** hành vi agent ("cách audit code") không nên hardcode trong prompt → tách ra **file `Skill.md`** nạp vào working memory khi cần → linh hoạt + version được. **KHÔNG dùng** khi chỉ 1 hành vi cố định.
+- **Công sức:** ~0.5 buổi (nhẹ — chủ yếu là pattern tổ chức file, đúng kiểu skill mà chính Claude Code đang dùng).
+
+> **Lưu ý scope:** module này **KHÔNG ưu tiên hơn** 2 ô niche. Nếu kẹt thời gian trước 13/8 → đẩy hết sang tháng 9; CV vẫn đủ mạnh với retrieval + eval. Giá trị ở đây là **chiều sâu để đi làm**, không phải bullet CV.
+
+---
+
+## 🏢 MODULE BỔ SUNG — Demo #2: Internal Knowledge Base đa phòng ban (synthetic + RLS)
+
+> **Vì sao thêm (chốt 29/6):** AI Code Auditor chứng minh retrieval+eval trên **code**. Demo #2 chứng minh kỹ năng **CHUYỂN DOMAIN** (không dính chết vào code) + thêm 2 thứ enterprise mà demo RAG thường bỏ qua: **phân quyền (RLS)** và **đo rò rỉ**. **Slot linh hoạt:** sau Demo #1 / Tuần 6 stretch / **tháng 9**. ~3–4 buổi. 3 thứ CV thèm: (1) chuyển domain, (2) **retrieval = bảo mật, không chỉ search**, (3) vẫn **đo được bằng số**.
+
+### Buổi E1 — Sinh synthetic corpus đa phòng ban + golden set
+- **Bài toán:** không có data thật của công ty → tự tạo. Nhưng data ảo dễ **quá sạch** → demo đẹp hơn thực tế.
+- **Build:** nhờ LLM sinh **4 phòng ban** (HR / Finance / Engineering / Legal), mỗi phòng vài chục doc; mỗi doc gắn metadata `department` + `access_level` (vd public / staff / manager / exec). **Cố ý nhét nhiễu:** thuật ngữ chồng chéo giữa phòng, 2 doc mâu thuẫn, near-duplicate xuyên phòng → mới lộ bài toán distractor thật.
+- **Golden set 3 loại câu:** (a) in-scope 1 phòng, (b) **cross-department** (câu chạm 2 phòng), (c) **câu kiểm tra phân quyền** (user thấp quyền hỏi doc cấp cao → hệ PHẢI từ chối, KHÔNG được lộ).
+- **KHÔNG dùng / Công sức:** ~1 buổi. Đừng sinh 10k doc — **thật ở cấu trúc + edge-case, không ở số lượng**.
+
+### Buổi E2 — Access control = Row-Level Security (lọc TRƯỚC retrieval)
+- **Bài toán:** nếu lọc quyền *sau* khi retrieve (hoặc để LLM tự "đừng nói") → doc cấm vẫn lọt vào prompt = **rò rỉ**. LLM không phải lớp bảo mật.
+- **Build:** user mang 1 `role/clearance` → **lọc tập ứng viên theo quyền NGAY TRƯỚC** vector/keyword search → chỉ doc được phép mới tới được prompt. Đây đúng "RAG là màng lọc Row-Level Security" (note Beyond-RAG) — biến retrieval từ *search* thành *secure access*.
+- **3 câu / KHÔNG dùng:** vấn đề = LLM tin context mù → giải pháp = chặn ở **tầng retrieval**, không ở prompt → **KHÔNG dùng** khi mọi user cùng quyền (khỏi RLS cho nhẹ).
+- **Công sức:** ~1 buổi. Tái dùng filter metadata của Demo #1 (Ngày 14) — mở rộng từ `type=code/doc` sang `department`/`access_level`.
+
+### Buổi E3 — Đo: precision@3 + "leak rate" (đòn chốt của demo)
+- **Bài toán:** demo bảo mật phải **chứng minh bằng số**, không bằng lời.
+- **Đo 2 trục:** **precision@3** theo từng phòng (chất lượng) + **leak rate** = số lần hệ surface 1 doc user KHÔNG được xem (bảo mật). **Leak rate phải = 0.**
+- **Đòn chốt (so baseline):** chạy **không-RLS** → user thấp quyền **moi được** thông tin cấm (lỗ hổng thật, đo được) → bật RLS → **leak = 0**, precision không đổi. 💬 Câu phỏng vấn vàng: *"vì sao lọc quyền phải ở tầng retrieval chứ không phải dặn LLM 'đừng trả lời'?"*
+- **Công sức:** ~1 buổi. Tái dùng khung `eval_set.py` — thêm 1 hàm chấm leak (đừng copy, mở rộng).
+
+> **Lưu ý scope:** Demo #2 **sau** Demo #1 (đừng làm song song loãng cả hai). Nếu trễ → tháng 9. Nhưng nếu kịp, cặp "Code Auditor + KB đa phòng ban có RLS" là **portfolio mạnh hiếm** ở fresher: chứng minh kỹ năng **chuyển domain + tư duy bảo mật + đo lường**, đúng 3 thứ tách bạn khỏi đám "ráp RAG demo".

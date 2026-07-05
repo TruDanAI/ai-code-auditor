@@ -23,8 +23,8 @@
 | 🔴 Phải hiểu sâu | **Heap / Priority Queue** | **Lấy top-k kết quả** (trái tim của retrieval) | `retrieve_top_k` |
 | 🟡 Hiểu khái niệm | **Sorting** | Rank kết quả theo điểm | hybrid merger |
 | 🟡 Hiểu khái niệm | **Binary Search** | Tra cứu nhanh trong mảng đã sort | nâng cao |
-| 🟡 Hiểu khái niệm | **Tree (BST, B-Tree)** | Index của database, SQLite | `SQLiteDocumentStore` |
-| 🟡 Hiểu khái niệm | **Graph + BFS/DFS** | **HNSW** — xương sống vector DB | Tuần 2: vector DB |
+| 🟡→🔴 từ Tuần 4 | **Tree + DFS** | Index DB; **AST của code — tầng L0 auditor (Ngày 26)** | `SQLiteDocumentStore`; auditor L0 |
+| 🟡 Hiểu khái niệm | **Graph + BFS/DFS** | **HNSW** — xương sống vector DB; call graph giữa các hàm (auditor v2) | Tuần 2: vector DB |
 | 🟢 Biết là đủ | **Stack / Queue** | Agent loop, BFS traversal, undo | Tuần 3: agent |
 | 🟢 Biết là đủ | **Trie** | Autocomplete, prefix match | (ít dùng) |
 | 🟢 Biết là đủ | **Set** | Loại trùng, phép giao/hợp tập kết quả | hybrid merge dedup |
@@ -207,6 +207,12 @@
     Cây cân bằng cần duy trì (chèn/xóa phải tái cân bằng) → tốn hơn array cho dữ liệu tĩnh. Và B-Tree
     index tăng tốc **đọc** nhưng làm **ghi** chậm hơn (mỗi insert phải cập nhật index). Đừng index mọi cột.
 
+> **🆕 Mỏ neo mới (REV 2/7) — AST, cái cây mày sẽ TỰ TAY đi trong Tuần 4:** khi build tầng L0
+> deterministic của auditor (Ngày 26), module `ast` của Python parse code thành một **cây cú pháp**
+> (mỗi hàm/lệnh gọi/phép gán = một node có con). "Tìm mọi chỗ so sánh chữ ký bằng `==`" = **duyệt cây
+> bằng DFS** (`ast.walk`). Đây là khoảnh khắc tree + DFS hết trừu tượng: không phải bài LeetCode,
+> mà là chính con auditor của mày đang leo cây. Sau này call graph giữa các hàm (auditor v2) = Graph thật.
+
 ---
 
 ## 7. GRAPH + BFS/DFS + HNSW — Xương sống của Vector Database
@@ -331,6 +337,28 @@
 | **Tìm vector gần nhất ở quy mô triệu** | **Graph / HNSW (ANN)** | ~O(log n) |
 | Agent nhiều bước, hàng đợi tác vụ | Stack / Queue | O(1) |
 | Khử trùng khi merge kết quả | Set | O(1) |
+
+---
+
+## GIAO THỨC CHỐNG-QUÊN (bắt buộc — vì đọc hiểu ≠ nhớ được)
+
+> Não quên là mặc định. Thứ duy nhất chống được là **chủ động lôi ra khỏi đầu** (active recall),
+> không phải đọc lại. 4 luật, tổng chi phí ~10 phút/ngày:
+
+1. **Mở đầu MỖI buổi tối: 3 câu recall, trả lời MIỆNG, sách đóng.** Lấy 1 câu từ mục "Câu hỏi phỏng
+   vấn tự luyện" + 2 câu từ bài/khái niệm của 2 ngày trước. Trả lời xong mới được mở tài liệu.
+   Bí → đánh dấu, học lại đúng chỗ đó (chỗ bí = chỗ đáng học nhất).
+2. **Mỗi chủ đề = MỘT con số neo** (nhớ 1 số, kéo cả khái niệm về):
+   - Big-O log n → **"1 triệu phần tử = ~20 bước"**
+   - Heap top-k → **"O(n log k) — k nhỏ mới đáng"**
+   - Hashmap/Set → **"O(1) trung bình, khớp CHÍNH XÁC"**
+   - HNSW/ANN → **"đổi vài % recall lấy log n"**
+   - Amortized → **"đầy thì gấp đôi rồi copy"**
+   - Time–space → **"muốn nhanh → tốn chỗ + phải giữ đồng bộ"**
+3. **Thứ 7: blank-page test.** Giấy trắng, vẽ lại bảng "bài toán → DSA" từ trí nhớ, rồi mở file so.
+   Ô nào trống/sai = mục ôn tuần sau. (Đây là phiên bản DSA của golden set: đo thật, không đoán.)
+4. **Chưa nói TO được 3 câu (vấn đề → nguyên lý → giới hạn) thì CHƯA được tick ô** trong
+   `ke-hoach-nen-tang-python-dsa.md`. Tick = nói được, không phải đọc xong.
 
 ---
 

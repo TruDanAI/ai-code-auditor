@@ -70,6 +70,12 @@
 | Ban ngày | ~2.5–3h | **Portfolio** (roadmap AI Code Auditor) |
 | Buổi tối | ~1.5–2h | **Nền tảng** (Tuần 1: Python · Tuần 2+: DSA + math xen kẽ) |
 
+> **⚠️ REV 2/7 — LỊCH TỐI đã hợp nhất về MỘT file:** mọi track ngoài giờ (Python, DSA, math, AWS,
+> docs LangGraph/MCP, teach-back) giờ xếp lịch tại **[lich-hoc-buoi-toi.md](lich-hoc-buoi-toi.md)** —
+> nguồn duy nhất, tick tiến độ ở đó, kèm 5 luật chung + luật de-scope đã duyệt trước (portfolio thắng
+> tie-break đến 13/8; DSA hạ 2 bài → 1 bài khi ngày lụt). **File NÀY giữ vai:** nội dung chi tiết từng
+> buổi Python/DSA/math + cột mốc dài hạn — lịch tuần bên dưới chỉ còn là THAM CHIẾU nội dung.
+
 ---
 
 ## CỘT MỐC & KỲ VỌNG THỰC TẾ
