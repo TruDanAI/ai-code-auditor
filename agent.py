@@ -11,14 +11,20 @@ Chay (nho activate venv E:\\venvs\\ai-code-auditor + set env Vertex truoc):
     python agent.py C:\\Users\\Pc\\Desktop\\chatbot-fanpage
 """
 
+import json
 import os
 import re
 import sys
+import time
 
 from google import genai
 from google.genai import types
 
 MODEL = "gemini-2.5-flash-lite"   # loop goi LLM nhieu lan -> model re (REV 2/7)
+
+# Bang gia USD / 1 TRIEU token (gemini-2.5-flash-lite). Neo: 1M token input = 10 xu.
+PRICE = {"input": 0.10, "output": 0.40}
+LOG_FILE = "agent_log.jsonl"      # so chi phi - 1 dong JSON / 1 cu goi LLM
 MAX_STEPS = 10                    # nang 6->10 (do that Ngay 16: guardrail an ~1 step tu choi
                                   # + 2-3 step dieu tra bu -> 6 la chet non giua chung)
 
@@ -30,11 +36,16 @@ GUARDRAIL_MSG = (
     "Ket luan audit phai dua tren CODE DA DOC, khong phai mo ta tu grep/README. "
     "Quay lai Buoc 2: read_file it nhat 1 file lien quan tim duoc tu grep, roi moi ket luan."
 )
+EXIT_MSG = (
+    "TU CHOI: ban vua ket thuc bang text thuong. CUA RA DUY NHAT cua phien audit "
+    "la goi submit_findings - nop ngay findings/verified_ok/not_checked "
+    "dua tren nhung gi da dieu tra."
+)
 FINAL_SUMMARY_MSG = (
-    "HET LUOT DIEU TRA - dung goi them tool. "
-    "Tong ket NGAY findings tu nhung observation da co o tren: "
-    "moi ket luan kem citation file:line; "
-    "vung nao chua kip kiem tra thi khai ro 'CHUA KIEM TRA' - khong duoc suy dien."
+    "HET LUOT DIEU TRA. Nop bao cao NGAY bang submit_findings, "
+    "chi dua tren nhung observation da co o tren: "
+    "moi finding kem file + line + evidence NGUYEN VAN tu ket qua tool; "
+    "vung chua kip kiem tra khai vao not_checked - khong duoc suy dien."
 )
 
 # Auditor PHAI nhin thay tests/ va shops/ (bai hoc Ngay 9: IGNORE_DIRS cua
@@ -80,7 +91,7 @@ def read_file(filepath: str, start_line: int = 1) -> str:
     numbered = "\n".join(f"{i}: {line[:200]}" for i, line in enumerate(window, start=start))
     if start - 1 + 80 < total:
         numbered += (f"\n... [file co {total} dong - goi read_file voi "
-                     f"start_line={start + 80} de doc tiep]")
+                    f"start_line={start + 80} de doc tiep]")
     return numbered
 
 
@@ -111,7 +122,16 @@ def grep(pattern: str, ext: str = "") -> str:
         # model dua regex hong (vd 'verify(' thieu dong ngoac) -> tim literal thay vi crash
         rx = re.compile(re.escape(pattern), re.IGNORECASE)
 
-    allowed = (ext,) if ext else ALLOWED_EXT   # model tu chon loc, mac dinh nhu cu
+    # REVIEW-FIX 7/7 #3: chuan hoa ext model truyen - 'js' / 'JS' / '*.js' deu
+    # phai hieu la '.js'. Khong chuan hoa: ext='JS' -> 0 file khop -> "No matches"
+    # = FALSE NEGATIVE IM LANG (toi nang nhat cua auditor - cung ho voi bug \x08).
+    if ext:
+        ext = ext.strip().lower().lstrip("*")
+        if not ext.startswith("."):
+            ext = "." + ext
+        allowed = (ext,)
+    else:
+        allowed = ALLOWED_EXT   # model de trong -> tim tat ca nhu cu
 
     # Gom khop THEO FILE de ap tran tung file - 1 file lam to (vd DESIGN.md)
     # khong duoc phep chiem het cho cua ca danh sach (bai hoc tran-50-dong Ngay 15/16)
@@ -119,7 +139,7 @@ def grep(pattern: str, ext: str = "") -> str:
     for root, dirs, files in os.walk(CODEBASE_DIR):
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]   # cat nhanh cay thu muc rac
         for name in files:
-            if not name.endswith(allowed):
+            if not name.lower().endswith(allowed):
                 continue
             path = os.path.join(root, name)
             rel = os.path.relpath(path, CODEBASE_DIR)
@@ -181,6 +201,170 @@ def list_files(directory: str = ".") -> str:
     return listing
 
 
+# ============================================================
+# CUA RA DUY NHAT (Ngay 17): submit_findings.
+# Khai bao TAY bang JSON schema (khong dua docstring nhu 3 tool tren)
+# vi tham so long nhau (mang object) - docstring khong ta noi kieu nay.
+# Moi "description" duoi day = PROMPT: model doc chung moi lan nop bao cao.
+# ============================================================
+
+SUBMIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "findings": {
+            "type": "array",
+            # description = cau cua EM (5/7), mentor them ve "verified_ok":
+            # thuoc tri benh "12 findings - 0 van de" (model lap form vi so mang rong)
+            "description": (
+                "CHI chua VAN DE THAT SU co. 'Da kiem tra va thay AN TOAN' "
+                "KHONG phai finding - ghi vao verified_ok. Khi khong tim thay "
+                "van de thi de mang rong [] - do la cau tra loi TOT."
+            ),
+            "items": {
+                "type": "object",
+                "properties": {
+                    # Slot 1 (em chon B): 5 muc chuan nganh - enum de model khong bia
+                    # chu "rat nguy hiem"/"hoi lo" lam bao cao khong gom nhom duoc
+                    "severity": {
+                        "type": "string",
+                        "enum": ["critical", "high", "medium", "low", "info"],
+                        "description": "muc nguy hiem cua LOI TRONG CODE BI AUDIT",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "nhom loi: crypto, auth, secret, doc-mismatch...",
+                    },
+                    "file": {
+                        "type": "string",
+                        "description": "duong dan tuong doi tu goc codebase",
+                    },
+                    # Slot 2 (em chon B): integer - validator se doi chieu lines[line-1],
+                    # chuoi "khoang 30-35" thi may khong tru 1 duoc
+                    "line": {
+                        "type": "integer",
+                        "description": "so dong lay tu output read_file/grep - KHONG doan",
+                    },
+                    "evidence": {
+                        "type": "string",
+                        "description": "trich NGUYEN VAN noi dung dong code tai file:line",
+                    },
+                    # Slot 3: TODO(EM) - sua cau description nay bang LOI CUA EM
+                    # truoc khi chay (day la cau prompt day model phan biet).
+                    "evidence_type": {
+                        "type": "string",
+                        "enum": ["code", "doc"],
+                        "description": (
+                            "code = dong evidence LA lenh se CHAY that (implementation). "
+                            "doc = dong chi NOI VE / nhac den: file .md, comment //, "
+                            "hoac CHUOI string trong .js (console.log('...md5...') "
+                            "khong phai he thong DUNG md5)."
+                        ),
+                    },
+                    "explanation": {
+                        "type": "string",
+                        "description": "vi sao day la van de",
+                    },
+                    "suggestion": {
+                        "type": "string",
+                        "description": "cach sua - CHI dien khi that su biet cach sua",
+                    },
+                },
+                # Slot 4: 7 bat buoc, suggestion TU NGUYEN - field bat buoc thi model
+                # PHAI dien ke ca khi khong co gi de dien -> ep suggestion = moi no bia
+                "required": ["severity", "category", "file", "line",
+                             "evidence", "evidence_type", "explanation"],
+            },
+        },
+        "verified_ok": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": ("MOI phan tu = 1 muc DA kiem + cach kiem + ket luan, "
+                            "vd 'md5: grep \\bmd5\\b ext=.js -> khong thay' hoac "
+                            "'hash sha256 admin-auth.js:154 -> an toan'. "
+                            "KHONG gop nhieu muc vao 1 chuoi."),
+        },
+        "not_checked": {
+            "type": "array",
+            "items": {"type": "string"},
+            # cau cua EM (5/7): ep model ra lai observation truoc khi khai rong
+            "description": (
+                "Nhung gi DA THAY trong observation ma CHUA dieu tra "
+                "(vd ham/thuat toan luot qua khi read_file) + vung chua quet - "
+                "khai that, KHONG suy dien."
+            ),
+        },
+    },
+    "required": ["findings", "verified_ok", "not_checked"],
+}
+
+# Tool cua ra: khac 3 tool tren, SDK khong doc docstring ma nhan schema ta dua
+submit_findings_decl = types.FunctionDeclaration(
+    name="submit_findings",
+    description=(
+        "CUA RA DUY NHAT cua phien audit. Goi tool nay DE KET THUC khi da dieu "
+        "tra xong: nop findings + verified_ok + not_checked. "
+        "KHONG duoc ket thuc bang text thuong."
+    ),
+    parameters_json_schema=SUBMIT_SCHEMA,
+)
+submit_tool = types.Tool(function_declarations=[submit_findings_decl])
+
+
+def validate_report(args: dict, tools_called: set) -> str:
+    """NGUOI GAC CUA (nac B): kiem tra bao cao TRUOC khi cho ra khoi vong lap.
+
+    Tra ve "" = PASS; nguoc lai tra message loi de doi nguoc cho model sua.
+    Chi kiem duoc HINH THUC (file/line/evidence co that khong) - benh NGU NGHIA
+    (finding rac, khai man not_checked) tri bang schema description + benchmark.
+    """
+    # Buoc 0 - guardrail Ngay 16 DOI CHO ve day: bao cao phai dua tren code DA DOC.
+    # Loi tu choi gio quay ve qua function_response (doi CONG, khong doi check).
+    if "read_file" not in tools_called:
+        return ("TU CHOI: ban chua read_file file nao - ket luan audit phai dua "
+                "tren CODE DA DOC. Dieu tra truoc roi moi submit_findings.")
+
+    problems = []
+    for i, f in enumerate(args.get("findings", [])):
+        label = f"findings[{i}] ({f.get('file', '?')}:{f.get('line', '?')})"
+
+        # Buoc 1 - file co that khong?
+        rel = str(f.get("file", ""))
+        path = os.path.join(CODEBASE_DIR, rel)
+        if not os.path.isfile(path):
+            problems.append(f"{label}: file khong ton tai trong codebase")
+            continue
+
+        # Buoc 2 - dong do co that khong?
+        with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+            lines = fh.read().splitlines()
+        line_no = int(f.get("line", 0))
+        if not (1 <= line_no <= len(lines)):
+            problems.append(f"{label}: file chi co {len(lines)} dong")
+            continue
+
+        # Buoc 3 - evidence khop NGUYEN VAN dong do khong? (Ngay 16 kiem tay,
+        # nay code kiem ho - citation bia bi bat tai day). So sau khi ep
+        # whitespace ve 1 space de khong truot vi thut le/tab.
+        ev = " ".join(str(f.get("evidence", "")).split())
+        actual = " ".join(lines[line_no - 1].split())
+        if not ev or ev not in actual:
+            problems.append(
+                f"{label}: evidence KHONG khop noi dung that cua dong "
+                f"(dong that: '{lines[line_no - 1].strip()[:120]}') "
+                f"- read_file lai va trich nguyen van."
+            )
+
+        # Buoc 4 - khai evidence_type lao lo lieu: file .md ma bao 'code'
+        if f.get("evidence_type") == "code" and rel.endswith(".md"):
+            problems.append(f"{label}: file .md ma khai evidence_type='code' "
+                            f"- .md chi NOI VE code")
+
+    if problems:
+        return ("TU CHOI bao cao - sua cac loi sau roi submit_findings lai:\n"
+                + "\n".join(problems[:10]))
+    return ""
+
+
 # Registry: map ten tool (model goi bang TEN trong FunctionCall) -> ham that
 TOOLS = {
     "read_file": read_file,
@@ -207,18 +391,112 @@ LUAT BAO CAO:
 - Chi ket luan tu observation - KHONG bia, KHONG doan.
 - Moi ket luan PHAI kem citation file:line lay tu ket qua tool.
 - Ket luan "khong co X" phai neu ro: DA kiem tra pattern gi + he thong dang dung gi thay the.
-- Tra loi ngan gon bang tieng Viet."""
+- Tra loi ngan gon bang tieng Viet.
+- KET THUC: khi dieu tra xong, goi submit_findings de nop bao cao co cau truc -
+  do la CACH DUY NHAT ket thuc phien audit, KHONG ket thuc bang text thuong."""
 
 
 
 # ============================================================
-# VONG LAP ReAct - trai tim bai hom nay. 3 cho TODO cho em lap.
+# LOGGING CHI PHI (Ngay 18): tram can 1 cua cho MOI cu goi LLM.
+# Nguyen ly = guardrail Ngay 16: cai gi code ep duoc thi khong
+# nho ky luat con nguoi (rac logging 2 cho = quen dung cho dat nhat).
+# ============================================================
+
+def log_llm_call(record: dict) -> None:
+    """Ghi 1 dong JSONL - mode 'a' (append): crash giua phien
+    thi cac dong DA ghi van con nguyen (khac JSON array phai ghi-de ca file)."""
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def call_llm(contents, config, step: int, phase: str, totals: dict):
+    """TRAM CAN 1 cua: bam gio -> goi API -> nhat usage_metadata -> ghi so
+    -> cong don vao totals -> tra response Y NGUYEN (can hang, khong dong hang).
+    """
+    t0 = time.perf_counter()   # perf_counter: dong ho DON DIEU de do khoang thoi gian
+    response = client.models.generate_content(
+        model=MODEL, contents=contents, config=config
+    )
+    latency_ms = round((time.perf_counter() - t0) * 1000)
+
+    # DAP AN TODO 1: nhat so tu usage_metadata.
+    # SDK tra None (khong phai 0) cho field vang mat -> `or 0` do tung field,
+    # khong thi cong tien ben duoi TypeError giua phien.
+    usage = response.usage_metadata
+    prompt_tokens = (usage.prompt_token_count or 0) if usage else 0
+    output_tokens = (usage.candidates_token_count or 0) if usage else 0
+    thoughts_tokens = (usage.thoughts_token_count or 0) if usage else 0
+    cached_tokens = (usage.cached_content_token_count or 0) if usage else 0
+
+    # DAP AN TODO 2: tien = token/1M * gia-per-1M.
+    # thoughts tinh gia OUTPUT (model "viet ra de suy nghi" = van la sinh token).
+    # cached_tokens THUC TE duoc giam gia ~75% nhung minh tinh du gia cho don gian
+    # -> so hoi DOI len 1 chut (sai ve phia an toan cho ngan sach).
+    cost_usd = (
+        prompt_tokens * PRICE["input"]
+        + (output_tokens + thoughts_tokens) * PRICE["output"]
+    ) / 1_000_000
+
+    # DAP AN TODO 3 (nua dau): cong don vao so tong cua PHIEN -
+    # dict truyen theo THAM CHIEU nen call_llm sua la run_agent thay
+    totals["calls"] += 1
+    totals["prompt_tokens"] += prompt_tokens
+    totals["output_tokens"] += output_tokens + thoughts_tokens
+    totals["cost_usd"] += cost_usd
+    totals["latency_ms"] += latency_ms
+
+    log_llm_call({
+        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "run_id": totals["run_id"],   # Tuan 4: moi muc checklist = 1 run -> group theo cot nay
+        "phase": phase,               # "loop" hay "chot" - biet cu goi nao dat
+        "step": step,
+        "model": MODEL,
+        "prompt_tokens": prompt_tokens,
+        "output_tokens": output_tokens,
+        "thoughts_tokens": thoughts_tokens,
+        "cached_tokens": cached_tokens,
+        "latency_ms": latency_ms,
+        "cost_usd": round(cost_usd, 6),
+        # ten tool model goi luot nay -> Tuan 4 doi chieu "step dat = hanh dong gi"
+        "function_calls": [fc.name for fc in (response.function_calls or [])],
+    })
+    return response
+
+
+# ============================================================
+# VONG LAP ReAct - trai tim Ngay 15-17.
 # ============================================================
 
 def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
+    """Vo boc mong (Ngay 18): mo so tong -> chay vong audit -> in tong ket.
+
+    DAP AN TODO 3 (nua sau): _audit_loop co 4 duong return (nhanh A, submit
+    trong vong, cu chot pass, cu chot WARN) - dat print o tung duong = quen.
+    try/finally = MOT diem thoat duy nhat cho so sach: return duong nao,
+    tham chi crash, finally cung chay.
+    """
+    totals = {
+        "run_id": time.strftime("%Y%m%d-%H%M%S"),
+        "calls": 0, "prompt_tokens": 0, "output_tokens": 0,
+        "cost_usd": 0.0, "latency_ms": 0,
+    }
+    try:
+        return _audit_loop(question, max_steps, totals)
+    finally:
+        print(
+            f"\n[$ TONG KET run {totals['run_id']}] {totals['calls']} cu goi LLM"
+            f" | in {totals['prompt_tokens']:,} tok | out {totals['output_tokens']:,} tok"
+            f" | ~${totals['cost_usd']:.4f} | LLM chiem {totals['latency_ms'] / 1000:.1f}s"
+        )
+
+
+def _audit_loop(question: str, max_steps: int, totals: dict) -> str:
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
-        tools=[read_file, grep, list_files],  # truyen HAM -> SDK tu sinh schema
+        # Gio tool tron duoc 2 kieu: 3 HAM (SDK doc docstring tu sinh schema)
+        # + 1 declaration tay (cua ra) - SDK tu quy doi ca hai
+        tools=[read_file, grep, list_files, submit_tool],
         automatic_function_calling=types.AutomaticFunctionCallingConfig(
             disable=True  # TU cam lai vong lap -> thay duoc trace tung buoc
         ),
@@ -230,9 +508,8 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
     rejections = 0         # dem so lan guardrail tu choi (de biet khi nao mo duong thoat)
 
     for step in range(1, max_steps + 1):
-        response = client.models.generate_content(
-            model=MODEL, contents=contents, config=config
-        )
+        # Ngay 18: di qua tram can thay vi goi client truc tiep
+        response = call_llm(contents, config, step, phase="loop", totals=totals)
         print(f"\n--- Step {step} ---")
 
         # Thought: model thuong kem 1 doan text giai thich truoc khi goi tool
@@ -240,26 +517,29 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
             if part.text:
                 print(f"Thought: {part.text.strip()}")
 
-        # A) Model khong goi tool nua -> MUON ket thuc. Guardrail kiem tra TRUOC khi cho ra.
+        # A) Model khong goi tool nua -> MUON ket thuc bang text thuong.
+        # REVIEW-FIX 7/7 #1: truoc day nhanh nay van RETURN text khi da read_file
+        # -> mau thuan luat "submit_findings la CUA RA DUY NHAT" (Ngay 17).
+        # Nay KHONG con duong return text nao: doi nguoc toi da MAX_REJECTIONS
+        # lan, van ly text -> break xuong cu chot mode='ANY' (luat vat ly ep nop).
         if not response.function_calls:
-            if "read_file" not in tools_called and rejections < MAX_REJECTIONS:
+            # Ghi so DUNG THU TU NHAN QUA: model noi gi TRUOC -> the gioi dap gi SAU.
+            # (Dao nguoc = so ke lao "model tra loi bat chap lenh tu choi" -> model hoc lao,
+            #  khong 400 nao bao - chet im lang kieu 3.)
+            contents.append(response.candidates[0].content)  # cau text BI VUT van phai vao so
+            if rejections < MAX_REJECTIONS:
                 rejections += 1
-                print(f"[GUARDRAIL] Tu choi lan {rejections}: chua read_file file nao")
-                # Ghi so DUNG THU TU NHAN QUA: model noi gi TRUOC -> the gioi dap gi SAU.
-                # (Dao nguoc = so ke lao "model tra loi bat chap lenh tu choi" -> model hoc lao,
-                #  khong 400 nao bao - chet im lang kieu 3.)
-                contents.append(response.candidates[0].content)  # cau tra loi BI VUT van phai vao so
-                contents.append(
-                    types.Content(role="user", parts=[types.Part(text=GUARDRAIL_MSG)])
-                )
-                continue   # KHONG return - ep vong lap chay tiep tu Buoc 2
-
-            answer = response.text
-            if not answer:
-                # Answer rong = chet im lang -> mo hop den: model DUNG vi ly do gi?
-                cand = response.candidates[0]
-                print(f"[DEBUG] finish_reason={cand.finish_reason} | parts={cand.content.parts}")
-            return answer
+                chua_doc = "read_file" not in tools_called
+                print(f"[GUARDRAIL] Tu choi lan {rejections}: "
+                      + ("chua read_file file nao" if chua_doc else "ket thuc bang text thuong"))
+                # 2 benh khac nhau -> 2 don thuoc: chua doc code thi bat di doc,
+                # doc roi ma thoat sai cua thi chi ve dung cua
+                contents.append(types.Content(
+                    role="user",
+                    parts=[types.Part(text=GUARDRAIL_MSG if chua_doc else EXIT_MSG)],
+                ))
+                continue   # KHONG return - ep vong lap chay tiep
+            break   # het kien nhan -> roi xuong CU CHOT ep submit_findings
 
         # B) Ghi QUYET DINH cua model vao "cuon so" TRUOC khi ghi ket qua tool
         # (API stateless - thieu luot nay la function_response mo coi -> loi 400)
@@ -274,6 +554,23 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
             args = dict(fc.args)  # args da la dict san - KHONG parse gi ca
             print(f"Action: {fc.name}({args})")
             tools_called.add(fc.name)   # ghi trace: tool nay DA duoc goi that
+
+            if fc.name == "submit_findings":
+                # NAC B (Ngay 17): cua ra CO nguoi gac. Fail -> loi doi nguoc
+                # qua function_response (model coi nhu ket qua tool) va vong lap
+                # CHAY TIEP; pass -> day la loi ra duy nhat co ket qua sach.
+                error = validate_report(args, tools_called)
+                if error:
+                    print(f"[VALIDATOR] doi nguoc: {error.splitlines()[0]} "
+                          f"(+{max(0, len(error.splitlines()) - 1)} loi nua)")
+                    response_parts.append(types.Part.from_function_response(
+                        name=fc.name, response={"result": error}))
+                    continue   # KHONG return - cho model sua roi nop lai
+
+                pretty = json.dumps(args, ensure_ascii=False, indent=2)
+                print("\n=== SUBMIT_FINDINGS (JSON - validator PASS) ===")
+                print(pretty)
+                return pretty
 
             if fc.name in TOOLS:
                 # C) Goi tool that: ** bung dict args thanh keyword arguments
@@ -294,19 +591,58 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
         # (API Gemini chi co 2 role: user/model - ket qua tool doi mu 'user')
         contents.append(types.Content(role="user", parts=response_parts))
 
-    # HET BUDGET nhung KHONG nop giay trang: findings da nam trong so (contents),
-    # ep 1 cu goi CHOT de model tong ket chung. Van la "model truoc - the gioi sau":
-    # luot model cuoi + function_response da duoc append trong vong lap roi.
-    print(f"\n[HARNESS] Het {max_steps} steps -> goi CHOT (khong tool) de tong ket findings")
+    # HET BUDGET -> CU CHOT CUONG CHE (Ngay 17 - tang 3 thang luat).
+    # Ngay 16 cu chot rut het tool + bat tra text = tu KHOA cua ra moi
+    # (2 luat da nhau: prompt doi submit_findings, config chi cho text
+    #  -> luat vat ly thang, model tra text - do that trace 6/7).
+    # Nay dao nguoc: chi dua DUY NHAT submit_tool + mode='ANY' -> API
+    # chan duong text, model bat buoc nop bao cao dung schema.
+    print(f"\n[HARNESS] Het {max_steps} steps -> CU CHOT mode='ANY': ep goi submit_findings")
     contents.append(types.Content(role="user", parts=[types.Part(text=FINAL_SUMMARY_MSG)]))
-    final = client.models.generate_content(
-        model=MODEL,
-        contents=contents,
-        # config MOI, KHONG truyen tools: model het duong goi tool,
-        # chi con mot loi thoat duy nhat la tra loi bang text
-        config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+    chot_config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        tools=[submit_tool],   # 1 cua duy nhat - khong con grep/read de "dieu tra them"
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(
+                mode="ANY",    # cam tra text - phai goi function
+                allowed_function_names=["submit_findings"],
+            )
+        ),
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
-    return final.text or f"Agent dung o max_steps={max_steps} ma van khong tong ket duoc (xem trace)."
+    pretty = None
+    for attempt in (1, 2):    # het budget dieu tra -> nguoi gac chi doi 1 lan
+        # cu chot CUNG phai qua tram can - chinh la cu goi DAT NHAT (contents dai nhat)
+        final = call_llm(contents, chot_config,
+                         step=max_steps + attempt, phase="chot", totals=totals)
+        if not final.function_calls:
+            # mode='ANY' ma khong co function_call = bat thuong -> mo hop den
+            print(f"[DEBUG] finish_reason={final.candidates[0].finish_reason}")
+            return final.text or f"Agent dung o max_steps={max_steps} ma khong nop duoc bao cao."
+
+        args = dict(final.function_calls[0].args)
+        pretty = json.dumps(args, ensure_ascii=False, indent=2)
+        error = validate_report(args, tools_called)
+        if not error:
+            print(f"\n=== SUBMIT_FINDINGS (JSON - cu chot, validator PASS lan {attempt}) ===")
+            print(pretty)
+            return pretty
+
+        print(f"[VALIDATOR] cu chot lan {attempt}: {error.splitlines()[0]} "
+              f"(+{max(0, len(error.splitlines()) - 1)} loi nua)")
+        if attempt == 1:
+            # doi 1 lan: ghi so dung thu tu model-truoc-the-gioi-sau roi goi lai
+            contents.append(final.candidates[0].content)
+            contents.append(types.Content(role="user", parts=[
+                types.Part.from_function_response(
+                    name="submit_findings", response={"result": error})
+            ]))
+
+    # dội lan 2 van hong -> nop kem canh bao thay vi treo (chong deadlock,
+    # cung triet ly MAX_REJECTIONS): bao cao van machine-readable, loi da in ro
+    print("[VALIDATOR-WARN] bao cao cuoi VAN con loi hinh thuc - nop kem canh bao")
+    print(pretty)
+    return pretty
 
 
 if __name__ == "__main__":

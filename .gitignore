@@ -17,3 +17,6 @@ Thumbs.db
 # RAG / data artifacts
 *.index
 *.pkl
+
+# Agent run artifacts (so chi phi - du lieu chay, khong phai code)
+agent_log.jsonl
