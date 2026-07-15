@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "version": "1.0 (Ngay 22 - 13/7/2026)",
+    "description": "Audit checklist cho chatbot-fanpage. Moi item = 1 phien run_agent rieng (run_id rieng -> do duoc $/muc). category dung CHUNG voi nhom loi cay Ngay 24 - benchmark va checklist phai cung khung.",
+    "categories": ["secret", "crypto", "auth", "doc-mismatch", "dependency", "input", "reliability", "error-handling", "config"],
+    "nguon": "OWASP Top 10:2025 + kinh nghiem van hanh that (item 11-13 tu su co production cua chinh chu du an)"
+  },
+  "items": [
+    {
+      "id": "SEC-01",
+      "category": "secret",
+      "owasp": "A02:2025 Security Misconfiguration",
+      "severity_hint": "critical",
+      "question": "Tim secret hardcode trong code .js: grep cac pattern 'EAAG' (page access token Facebook), 'api_key', 'apikey', 'secret', 'password', 'Bearer ' xem co CHUOI LITERAL nao gan thang gia tri that khong. Phan biet ro: doc tu process.env hoac file config ngoai repo = an toan (ghi verified_ok); gan chuoi literal dai/ngau nhien = finding."
+    },
+    {
+      "id": "SEC-02",
+      "category": "secret",
+      "owasp": "A09:2025 Security Logging & Alerting Failures",
+      "severity_hint": "high",
+      "question": "Credential hoac PII (token, so dien thoai khach, noi dung tin nhan khach) co bi ghi ra log khong? Grep 'console.log' va 'logger' trong cac file xu ly credential (core/credentials/, core/admin/session.js) va webhook, doc ky xem tham so log co chua token/PII tho khong. He thong co redact truoc khi log khong (goi y: grep 'redact')."
+    },
+    {
+      "id": "CRY-01",
+      "category": "crypto",
+      "owasp": "A05:2025 Cryptographic Failures",
+      "severity_hint": "high",
+      "question": "He thong co dung thuat toan ma hoa/hash yeu khong? Khao sat mat duong truoc: grep 'createHash|createHmac|createCipher|crypto' ext='.js' xem dang dung gi; roi grep danh sach yeu '\\bmd5\\b|\\bsha1\\b|\\bdes\\b|\\brc4\\b' ext='.js'. read_file it nhat 1 ham ma hoa chinh de xac nhan."
+    },
+    {
+      "id": "CRY-02",
+      "category": "crypto",
+      "owasp": "A05:2025 Cryptographic Failures",
+      "severity_hint": "high",
+      "question": "Cho nao so sanh chu ky/token/secret bang == hoac === thay vi crypto.timingSafeEqual? Grep 'signature|x-hub-signature|safeEqual|timingSafeEqual' ext='.js', read_file cac ham verify tim duoc, soi tung phep so sanh chuoi nhay cam. So sanh not-timing-safe = finding (timing attack)."
+    },
+    {
+      "id": "CRY-03",
+      "category": "crypto",
+      "owasp": "A05:2025 Cryptographic Failures",
+      "severity_hint": "high",
+      "question": "IV/nonce trong ma hoa AES co bi tai su dung hoac hardcode khong? Grep 'createCipheriv|randomBytes' ext='.js', read_file ham encrypt: IV phai duoc sinh moi bang crypto.randomBytes cho MOI lan ma hoa va luu kem ciphertext. IV hang so/tai dung voi GCM = finding critical (lo keystream)."
+    },
+    {
+      "id": "AUTH-01",
+      "category": "auth",
+      "owasp": "A01:2025 Broken Access Control",
+      "severity_hint": "critical",
+      "question": "Co endpoint admin nao thieu kiem tra quyen khong? list_files va read_file core/admin-routes.js (va cac file route admin khac): doi chieu TUNG route voi middleware/ham check quyen (grep 'requirePermission|ROLE_PERMISSIONS|checkAuth'). Route dinh nghia ma khong qua check quyen = finding."
+    },
+    {
+      "id": "AUTH-02",
+      "category": "auth",
+      "owasp": "A07:2025 Identification and Authentication Failures",
+      "severity_hint": "high",
+      "question": "Session/token admin duoc tao va xac thuc the nao? read_file core/admin/session.js: token co ky (HMAC) khong, co thoi han (expiry) khong, verify co check het han khong? Token khong ky hoac khong bao gio het han = finding."
+    },
+    {
+      "id": "DOC-01",
+      "category": "doc-mismatch",
+      "owasp": "A04:2025 Insecure Design",
+      "severity_hint": "medium",
+      "question": "Tai lieu co mo ta SAI ve bao mat so voi code that khong? Grep trong file .md cac tuyen bo ve crypto/auth ('AES|HMAC|encrypt|quyen|role'), chon 2-3 tuyen bo cu the va kiem chung tung cai bang code .js that. Tai lieu noi A code lam B = finding doc-mismatch (evidence_type='doc', kem citation ca 2 phia trong explanation)."
+    },
+    {
+      "id": "DEP-01",
+      "category": "dependency",
+      "owasp": "A03:2025 Software Supply Chain Failures",
+      "severity_hint": "medium",
+      "question": "read_file package.json: liet ke dependencies + version. Co package nao pinned o major version qua cu hoac co CVE noi tieng da biet khong (vd lodash <4.17.21 prototype pollution, axios <1.6 SSRF...)? Chi bao finding khi BIET CHAC CVE cu the - khong doan mo 'co the cu'; khong chac thi ghi not_checked de nguoi chay 'npm audit' xac nhan."
+    },
+    {
+      "id": "INP-01",
+      "category": "input",
+      "owasp": "A10:2025 Mishandling of Exceptional Conditions",
+      "severity_hint": "high",
+      "question": "Du lieu tu webhook (do NGUOI LA gui duoc) co duoc validate truoc khi dung khong? read_file core/webhook.js phan nhan event: truy cap thuoc tinh long (entry[0].messaging[0]...) co optional chaining/guard khong, JSON.parse co try/catch khong, gia tri user dua co di thang vao path/query/eval khong?"
+    },
+    {
+      "id": "REL-01",
+      "category": "reliability",
+      "owasp": "A10:2025 Mishandling of Exceptional Conditions",
+      "severity_hint": "high",
+      "question": "Facebook gui LAI webhook event khi khong nhan HTTP 200 kip thoi - he thong co dedup/idempotency de tranh XU LY VA GUI TIN NHAN 2 LAN khong? Grep 'recentMessage|dedup|mid|message_id' ext='.js', read_file co che dedup trong core/webhook.js: no dua tren khoa gi, TTL bao lau, co phu MOI duong gui tin (message, menu, media...) hay chi mot loai? Duong gui nao khong qua dedup = finding. (Nguon: su co production that - tin nhan gui lap 2 lan cho khach.)"
+    },
+    {
+      "id": "ERR-01",
+      "category": "error-handling",
+      "owasp": "A10:2025 Mishandling of Exceptional Conditions",
+      "severity_hint": "medium",
+      "question": "Loi tu Facebook Graph API co duoc phan loai xu ly rieng khong? Grep 'error.code|error_subcode|551|\\b613\\b' ext='.js' va doc nhanh catch: ma 10 (ngoai cua so 24h/thieu permission), 551 (nguoi dung khong kha dung - block/khoa acc), 613 (rate limit) can xu ly KHAC nhau (551 khong duoc retry, 613 phai backoff). Nuot chung moi loi hoac retry mu = finding. (Nguon: su co production that - loi 10/551 voi traffic tu ads.)"
+    },
+    {
+      "id": "CFG-01",
+      "category": "config",
+      "owasp": "A02:2025 Security Misconfiguration",
+      "severity_hint": "medium",
+      "question": "App co fail-fast khi thieu bien moi truong bat buoc khong? Grep 'process.env' ext='.js': cac bien quan trong (token, secret, DB path) co duoc validate luc khoi dong (thieu -> throw/exit voi message ro) hay dung truc tiep de undefined troi vao runtime roi chet im lang? Diem danh bien nao co guard, bien nao khong. (Nguon: su co production that - loi env khi deploy Railway.)"
+    }
+  ]
+}
