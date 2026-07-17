@@ -18,6 +18,7 @@ import sys
 import time
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 MODEL = "gemini-2.5-flash-lite"   # loop goi LLM nhieu lan -> model re (REV 2/7)
@@ -27,6 +28,12 @@ PRICE = {"input": 0.10, "output": 0.40}
 LOG_FILE = "agent_log.jsonl"      # so chi phi - 1 dong JSON / 1 cu goi LLM
 MAX_STEPS = 10                    # nang 6->10 (do that Ngay 16: guardrail an ~1 step tu choi
                                   # + 2-3 step dieu tra bu -> 6 la chet non giua chung)
+
+# FIX 429 (Ngay 23): batch 13 muc ban lien tuc -> 5 muc chet rate-limit Vertex.
+# Chi retry loi TAM THOI (429 het quota/phut, 503 server chap chon) - con 400
+# la SO SACH SAI, retry vo ich (goi lai y nguyen van 400).
+RETRY_MAX = 3
+RETRYABLE_CODES = {429, 503}
 
 # Guardrail tang HARNESS (Ngay 16): luat kiem tra duoc bang code thi KHONG nho prompt giu.
 # Prompt = loi khuyen (model nho lo duoc - da do o vong 5); code = luat cung 100%.
@@ -54,6 +61,10 @@ IGNORE_DIRS = {"node_modules", ".git"}
 ALLOWED_EXT = (".js", ".md", ".json")
 
 CODEBASE_DIR = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\Pc\Desktop\chatbot-fanpage"
+
+# Ngay 23: client KHONG con duoc tao trong __main__ ma qua init() - vi audit.py
+# import module nay (khoi __main__ khong chay khi bi import). None = chua init.
+client = None
 
 
 # ============================================================
@@ -246,7 +257,12 @@ SUBMIT_SCHEMA = {
                     },
                     "evidence": {
                         "type": "string",
-                        "description": "trich NGUYEN VAN noi dung dong code tai file:line",
+                        # FIX multi-line (Ngay 23): AUTH-01/REL-01 dan nguyen KHOI nhieu
+                        # dong -> validator so 1 dong -> doi 5 lan, dot ~4 call vo ich.
+                        # description = prompt (thuoc Ngay 17) - noi thang luat choi.
+                        "description": ("trich NGUYEN VAN noi dung cua DUNG MOT dong code "
+                                        "tai file:line - CHI 1 dong duy nhat, KHONG dan "
+                                        "ca khoi nhieu dong"),
                     },
                     # Slot 3: TODO(EM) - sua cau description nay bang LOI CUA EM
                     # truoc khi chay (day la cau prompt day model phan biet).
@@ -345,7 +361,11 @@ def validate_report(args: dict, tools_called: set) -> str:
         # Buoc 3 - evidence khop NGUYEN VAN dong do khong? (Ngay 16 kiem tay,
         # nay code kiem ho - citation bia bi bat tai day). So sau khi ep
         # whitespace ve 1 space de khong truot vi thut le/tab.
-        ev = " ".join(str(f.get("evidence", "")).split())
+        # FIX multi-line (nua validator): model van co tat dan ca khoi -> chi
+        # cham DONG DAU cua evidence voi dong duoc cite. Van la so nguyen van
+        # (khong yeu di), chi tha thu phan thua phia sau (vaccine cho tat da biet).
+        first_line = (str(f.get("evidence", "")).splitlines() or [""])[0]
+        ev = " ".join(first_line.split())
         actual = " ".join(lines[line_no - 1].split())
         if not ev or ev not in actual:
             problems.append(
@@ -414,10 +434,24 @@ def call_llm(contents, config, step: int, phase: str, totals: dict):
     """TRAM CAN 1 cua: bam gio -> goi API -> nhat usage_metadata -> ghi so
     -> cong don vao totals -> tra response Y NGUYEN (can hang, khong dong hang).
     """
-    t0 = time.perf_counter()   # perf_counter: dong ho DON DIEU de do khoang thoi gian
-    response = client.models.generate_content(
-        model=MODEL, contents=contents, config=config
-    )
+    # Retry dat o TANG NAY chu khong phai audit.py: contents dang mang ca phien
+    # do dang - chet o call 11 la mat trang 10 call truoc (SEC-01 mat $0.0084).
+    # Retry cang GAN cho loi cang re. 429 la quota-theo-PHUT -> backoff dai:
+    # 20s -> 40s -> 80s (ngan qua thi dap dau vao cung buc tuong).
+    for attempt in range(RETRY_MAX + 1):
+        t0 = time.perf_counter()   # perf_counter: dong ho DON DIEU do khoang thoi gian
+        try:
+            response = client.models.generate_content(
+                model=MODEL, contents=contents, config=config
+            )
+            break
+        except genai_errors.APIError as e:
+            if e.code not in RETRYABLE_CODES or attempt == RETRY_MAX:
+                raise   # loi khong-tam-thoi / het kien nhan -> nem len ao giap audit.py
+            wait = 20 * (2 ** attempt)
+            print(f"[RETRY] API tra {e.code} - doi {wait}s roi goi lai "
+                  f"(lan {attempt + 1}/{RETRY_MAX})")
+            time.sleep(wait)
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
     # DAP AN TODO 1: nhat so tu usage_metadata.
@@ -468,8 +502,14 @@ def call_llm(contents, config, step: int, phase: str, totals: dict):
 # VONG LAP ReAct - trai tim Ngay 15-17.
 # ============================================================
 
-def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
+def run_agent(question: str, max_steps: int = MAX_STEPS, run_id: str = ""):
     """Vo boc mong (Ngay 18): mo so tong -> chay vong audit -> in tong ket.
+
+    Ngay 23 (phuong an A): return (report, totals) thay vi chi report -
+    orchestrator audit.py can $/muc, lay thang tu nguon thay vi doc nguoc
+    agent_log.jsonl (ghim format log = gay im lang khi log doi cot).
+    run_id cho phep ben ngoai dat ten phien (vd 'SEC-01') de group so log
+    theo MUC checklist; de trong = tu sinh timestamp nhu cu.
 
     DAP AN TODO 3 (nua sau): _audit_loop co 4 duong return (nhanh A, submit
     trong vong, cu chot pass, cu chot WARN) - dat print o tung duong = quen.
@@ -477,12 +517,13 @@ def run_agent(question: str, max_steps: int = MAX_STEPS) -> str:
     tham chi crash, finally cung chay.
     """
     totals = {
-        "run_id": time.strftime("%Y%m%d-%H%M%S"),
+        "run_id": run_id or time.strftime("%Y%m%d-%H%M%S"),
         "calls": 0, "prompt_tokens": 0, "output_tokens": 0,
         "cost_usd": 0.0, "latency_ms": 0,
     }
     try:
-        return _audit_loop(question, max_steps, totals)
+        # dau phay tao TUPLE: (bao_cao_tu_audit_loop, so_tong) - 2 mon ve cung chuyen
+        return _audit_loop(question, max_steps, totals), totals
     finally:
         print(
             f"\n[$ TONG KET run {totals['run_id']}] {totals['calls']} cu goi LLM"
@@ -526,7 +567,13 @@ def _audit_loop(question: str, max_steps: int, totals: dict) -> str:
             # Ghi so DUNG THU TU NHAN QUA: model noi gi TRUOC -> the gioi dap gi SAU.
             # (Dao nguoc = so ke lao "model tra loi bat chap lenh tu choi" -> model hoc lao,
             #  khong 400 nao bao - chet im lang kieu 3.)
-            contents.append(response.candidates[0].content)  # cau text BI VUT van phai vao so
+            # FIX 400-role (Ngay 23): model co the tra content RONG TRON - khong text,
+            # khong function_call (CRY-02/03: step khong in Thought nao). Append content
+            # rong vao so -> cu goi sau 400 'Please use a valid role'. Rong thi khong
+            # co gi de ghi -> bo qua, chi ghi loi doi nguoc cua guardrail ben duoi.
+            model_content = response.candidates[0].content
+            if model_content is not None and model_content.parts:
+                contents.append(model_content)  # cau text BI VUT van phai vao so
             if rejections < MAX_REJECTIONS:
                 rejections += 1
                 chua_doc = "read_file" not in tools_called
@@ -575,7 +622,16 @@ def _audit_loop(question: str, max_steps: int, totals: dict) -> str:
             if fc.name in TOOLS:
                 # C) Goi tool that: ** bung dict args thanh keyword arguments
                 # vd fc.args = {'pattern': 'md5'} -> grep(pattern='md5')
-                observation = TOOLS[fc.name](**args)
+                # FIX TypeError (Ngay 23): model bia tham so khong co trong schema
+                # (INP-01: grep(directory=...)) -> khong duoc de 1 cu goi lao
+                # giet ca phien. Tra loi lam OBSERVATION de model doc va tu sua
+                # o luot sau (defensive tool - cung ho vaccine \x08, chuan hoa ext).
+                try:
+                    observation = TOOLS[fc.name](**args)
+                except Exception as e:
+                    observation = (f"Error: goi {fc.name} that bai - "
+                                   f"{type(e).__name__}: {e}. Xem lai tham so hop le "
+                                   f"trong mo ta tool roi goi lai cho dung.")
             else:
                 observation = f"Error: unknown tool '{fc.name}'"
 
@@ -645,19 +701,36 @@ def _audit_loop(question: str, max_steps: int, totals: dict) -> str:
     return pretty
 
 
-if __name__ == "__main__":
+def init(codebase_dir: str = "") -> None:
+    """MOT CUA KHOI TAO duy nhat (Ngay 23) - CLI lan orchestrator deu di qua day.
+
+    Import agent.py chi chay code MUC MODULE - khoi __main__ ben duoi KHONG chay
+    -> khong co client -> run_agent no ngay cu goi LLM dau tien. Ai muon dung
+    module nay (chinh no, audit.py, sau nay LangGraph node) phai goi init() truoc.
+    """
+    global client, CODEBASE_DIR   # gan vao bien MODULE, khong phai bien cuc bo
+
     # Guard env truoc khi tao client - loi ro rang thay vi stacktrace kho hieu
     if not (os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") or os.environ.get("GEMINI_API_KEY")):
         sys.exit(
             "Chua set backend LLM. Vertex: GOOGLE_GENAI_USE_VERTEXAI=True + "
             "GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION. Hoac: GEMINI_API_KEY."
         )
+    if codebase_dir:              # orchestrator truyen repo dich vao day
+        CODEBASE_DIR = codebase_dir
     client = genai.Client()  # dual-mode: tu doc env, y het call_gemini cua mini_rag
+
+
+if __name__ == "__main__":
+    init()   # CODEBASE_DIR da doc tu argv[1] o dau file -> khong can truyen lai
 
     print(f"Codebase: {CODEBASE_DIR}\nModel: {MODEL} | max_steps={MAX_STEPS}")
     while True:
         q = input("\nQuestion (hoac 'quit'): ").strip()
         if q.lower() in ("quit", "exit", ""):
             break
-        answer = run_agent(q)
+        # run_agent gio tra TUPLE (report, totals) - khong hung du 2 mon thi
+        # answer se la ca tuple -> print sai IM LANG (khong crash!).
+        # Che do interactive khong can totals -> vut bang `_` (quy uoc Python).
+        answer, _ = run_agent(q)
         print(f"\n=== FINAL ANSWER ===\n{answer}")
