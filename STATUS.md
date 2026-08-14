@@ -1,27 +1,44 @@
 # STATUS — AI Code Auditor
 
-**Cập nhật:** 18/07/2026  
-**Milestone:** Phase 1 — Seeded-bug benchmark integrity và baseline  
+**Cập nhật:** 14/08/2026  
+**Milestone:** Phase 1 — Baseline benchmark run ĐÃ CHẠY (X1 signal test hoàn tất)  
 **Chế độ mặc định hiện tại:** MENTOR MODE cho mutation có bài học; BUILD MODE cho
 scorer/runner/test cơ học sau khi contract đã được giải thích.
 
-## Trạng thái đã kiểm chứng
+## Trạng thái đã kiểm chứng (14/08/2026)
 
-- Commit dự án gần nhất: `525111a` — Day 23 batch orchestrator.
-- Auditor v1 đã chạy 13/13 checklist item thành công trên repo gốc.
-- Chi phí audit sạch đã quan sát khoảng `$0.05`; tổng vòng debug trong ngày khoảng
-  `$0.0992`. Đây là số lịch sử, không mặc định là giá mọi lần chạy.
-- `benchmark/scoring_rules.md` và `benchmark/golden_findings.json` tồn tại nhưng
-  thư mục `benchmark/` đang **untracked** trong `ai-code-auditor`.
-- Repo `chatbot-fanpage-spiked`, branch `spiked`, có 7 mutation commit sau base
-  `c0fa0d6`; HEAD hiện tại `fd42d29`.
-- Gold hiện có 7/15 record; tất cả `final_line` còn `null` đúng thiết kế cho tới
-  khi hoàn thành snapshot cuối.
-- Chưa ghi nhận lần chạy auditor benchmark clean-vs-spiked nào.
-- Offline Phase 1 scaffold đã có: dry-run-by-default runner, anchor-based gold
-  finalizer, deterministic scorer, majority-clean differential và telemetry manifest.
-- Kiểm chứng 18/07: 9/9 benchmark unit tests pass; citation validator cũ vẫn 6/6;
-  `py_compile` pass và chưa có LLM/API call nào từ benchmark tooling.
+- Commit `ai-code-auditor` gần nhất: gold finalized (188 dòng) sau
+  `66fdeaf` (freeze 15/15). `benchmark/` GIỜ ĐÃ được track trong git.
+- **15/15 mutation đã cấy xong** trên `chatbot-fanpage-spiked` branch `spiked`
+  (HEAD `c255f13`). 3 seed cuối (DOC-01, OOC-01, DEP-01) mỗi seed 1 commit + 1
+  validity check bằng code thật.
+- Gold `final_line` đã resolve cơ học từ snapshot cuối (0 null); `line_status =
+  resolved_from_final_spiked_snapshot`. Anchor mỗi seed unique-in-scope.
+- Snapshot clean/spiked export sạch: KHÔNG `.git`, KHÔNG `benchmark/`, KHÔNG gold
+  (192 file mỗi bên, hash phân biệt).
+- **Baseline benchmark run ĐẦU TIÊN đã chạy** (`benchmark/runs/baseline-v01/`):
+  3 clean + 3 spiked trial, interleaved. Model `gemini-2.5-flash-lite`,
+  max_steps 10. Tổng chi phí `$0.475` (dưới guardrail `$2`).
+- **Kết quả (raw, xem `benchmark/results-baseline-v01.md`):**
+  - In-scope recall mean **26.2%** (min 21.4% = 3/14, max 28.6% = 4/14).
+  - End-to-end coverage mean **24.4%** (3–4/15).
+  - In-scope precision mean **24.6%**; FDR mean **75.4%**.
+  - F1 mean **24.2%**.
+  - **Difficulty gradient (đây là phát hiện chính):** de **67%** → vua **20%**
+    → kho **11%**. Agent bắt lỗi grep-able, sập ở lỗi ngữ nghĩa/liên thủ tục.
+  - 8/15 seed KHÔNG BAO GIỜ bắt được — gần hết là `kho`.
+- Differential hoạt động đúng: `session.js:55` [auth] bị flag ở 3/3 CLEAN trial =
+  noise nền, bị loại. AUTH-02 (đúng line 169) cũng bị flag ở clean (2/3) → tính
+  MISS đúng, không ăn điểm may. Đây là bằng chứng mạnh nhất vì sao cần clean-vs-spiked.
+- Offline tests vẫn xanh: 9/9 benchmark unit tests, citation validator 6/6.
+
+## Quyết định X1 (theo P-X1 acceptance #7)
+
+**CONTINUE.** Benchmark tái lập được, cho signal ổn định (gradient độ khó nhất quán
+giữa các trial), và sinh failure taxonomy giàu. Đủ điều kiện đi Phase 2. KHÔNG phải
+vì auditor tốt — recall 26% là thấp — mà vì phép ĐO đáng tin và câu chuyện thất bại
+rõ. Đây đúng là mục tiêu X1: đo reproducibility + interpretability, không phải chứng
+minh auditor giỏi.
 
 ## Integrity note
 

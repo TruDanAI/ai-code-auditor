@@ -1,0 +1,1432 @@
+{
+  "protocol": {
+    "line_tolerance": 5,
+    "clean_consensus": "strict_majority",
+    "primary_metric_scope": "in_scope_only (14 seeds)",
+    "ooc_metric": "end_to_end_coverage (15 seeds)"
+  },
+  "inputs": {
+    "gold": "C:\\Users\\Pc\\Desktop\\Build CV\\ai-code-auditor\\benchmark\\golden_findings.json",
+    "clean": [
+      "benchmark\\runs\\baseline-v01\\clean-trial-01\\findings.json",
+      "benchmark\\runs\\baseline-v01\\clean-trial-02\\findings.json",
+      "benchmark\\runs\\baseline-v01\\clean-trial-03\\findings.json"
+    ],
+    "spiked": [
+      "benchmark\\runs\\baseline-v01\\spiked-trial-01\\findings.json",
+      "benchmark\\runs\\baseline-v01\\spiked-trial-02\\findings.json",
+      "benchmark\\runs\\baseline-v01\\spiked-trial-03\\findings.json"
+    ]
+  },
+  "clean_consensus": [
+    {
+      "file": "core/webhook.js",
+      "line": 276,
+      "category": "crypto",
+      "clean_trial_frequency": 2
+    },
+    {
+      "file": "core/admin/session.js",
+      "line": 55,
+      "category": "auth",
+      "clean_trial_frequency": 3
+    },
+    {
+      "file": "core/admin/session.js",
+      "line": 169,
+      "category": "auth",
+      "clean_trial_frequency": 2
+    }
+  ],
+  "trials": [
+    {
+      "counts": {
+        "tp_all": 3,
+        "tp_in_scope": 3,
+        "tp_out_of_checklist": 0,
+        "fn_in_scope": 11,
+        "fp": 9,
+        "baseline_excluded": 0,
+        "gold_all": 15,
+        "gold_in_scope": 14
+      },
+      "metrics": {
+        "in_scope_recall": 0.21428571428571427,
+        "end_to_end_coverage": 0.2,
+        "in_scope_precision": 0.25,
+        "in_scope_fdr": 0.75,
+        "f1_in_scope": 0.23076923076923075,
+        "all_seeded_precision": 0.25
+      },
+      "matched_gold_ids": [
+        "SEED-DEP-01",
+        "SEED-ERR-01",
+        "SEED-SEC-02"
+      ],
+      "missed_gold_ids": [
+        "SEED-AUTH-01",
+        "SEED-AUTH-02",
+        "SEED-CFG-01",
+        "SEED-CRY-01",
+        "SEED-CRY-02",
+        "SEED-CRY-03",
+        "SEED-DOC-01",
+        "SEED-INP-01",
+        "SEED-INP-02",
+        "SEED-OOC-01",
+        "SEED-REL-01",
+        "SEED-SEC-01"
+      ],
+      "per_category": {
+        "auth": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "config": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 5,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "crypto": {
+          "tp": 0,
+          "fn": 3,
+          "fp": 2,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "dependency": {
+          "tp": 1,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "doc-mismatch": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "error-handling": {
+          "tp": 1,
+          "fn": 0,
+          "fp": 1,
+          "recall": 1.0,
+          "precision": 0.5
+        },
+        "input": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 1,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "reliability": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "secret": {
+          "tp": 1,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.5,
+          "precision": 1.0
+        }
+      },
+      "per_difficulty": {
+        "de": {
+          "tp": 2,
+          "fn": 1,
+          "recall": 0.6666666666666666
+        },
+        "kho": {
+          "tp": 0,
+          "fn": 6,
+          "recall": 0.0
+        },
+        "vua": {
+          "tp": 1,
+          "fn": 4,
+          "recall": 0.2
+        }
+      },
+      "classifications": [
+        {
+          "class": "TP",
+          "gold_id": "SEED-SEC-02",
+          "gold_category": "secret",
+          "gold_difficulty": "de",
+          "gold_in_scope": true,
+          "finding": {
+            "evidence": "console.log(`[credentials] resolved token for shop=${normalizedShopId}: ${secret}`);",
+            "category": "secret",
+            "suggestion": "Redact the 'secret' variable before logging, or avoid logging it entirely.",
+            "explanation": "Token (secret) is logged in plain text in the console output, which can be exposed in logs.",
+            "line": 105,
+            "file": "core/credentials/page-credentials.js",
+            "evidence_type": "code",
+            "severity": "high",
+            "_checklist_id": "SEC-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "core/admin-auth.js",
+            "evidence": "return crypto.timingSafeEqual(actualHash, expectedHash);",
+            "severity": "info",
+            "line": 156,
+            "explanation": "Ham nay duoc dung de so sanh secret/token/chuoi nhay cam, dam bao tranh timing attack.",
+            "category": "crypto",
+            "evidence_type": "code",
+            "suggestion": "Da dung crypto.timingSafeEqual, an toan.",
+            "_checklist_id": "CRY-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "category": "crypto",
+            "file": "core/admin/session.js",
+            "suggestion": "Da dung crypto.timingSafeEqual, an toan.",
+            "line": 64,
+            "evidence_type": "code",
+            "explanation": "Ham nay duoc dung de so sanh secret/token/chuoi nhay cam, dam bao tranh timing attack.",
+            "severity": "info",
+            "evidence": "return crypto.timingSafeEqual(actualHash, expectedHash);",
+            "_checklist_id": "CRY-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-DEP-01",
+          "gold_category": "dependency",
+          "gold_difficulty": "de",
+          "gold_in_scope": true,
+          "finding": {
+            "evidence": "\"lodash\": \"4.17.15\"",
+            "category": "dependency",
+            "evidence_type": "code",
+            "line": 23,
+            "severity": "medium",
+            "file": "package.json",
+            "suggestion": "Nâng cấp lodash lên phiên bản 4.17.21 hoặc mới hơn.",
+            "explanation": "Phiên bản lodash 4.17.15 có lỗ hổng prototype pollution (ví dụ CVE-2019-10744, CVE-2020-8203). Phiên bản an toàn là 4.17.21 trở lên.",
+            "_checklist_id": "DEP-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "evidence_type": "code",
+            "severity": "high",
+            "line": 546,
+            "file": "core/webhook.js",
+            "category": "input",
+            "suggestion": "Add checks for the existence and type of `body.entry` and `entry.messaging` before iterating, or use optional chaining, e.g., `body.entry?.forEach(entry => { entry.messaging?.forEach(event => { ... }) })`. Wrap the access and processing of `event` data within a try-catch block for more granular error handling.",
+            "evidence": "for (const entry of body.entry || []) {\n        for (const event of entry.messaging || []) {\n          requestEvents.push({ event, pageId: entry.id, entryTime: entry.time });\n          if (hasMessagePayload(event) && event.sender?.id) {\n            requestMessageSenders.add(event.sender.id);\n          }\n          if (hasAdsReferralPayload(event) && event.sender?.id) {\n            requestAdsReferralSenders.add(event.sender.id);\n          }\n        }\n      }",
+            "explanation": "The code iterates through `body.entry` and `entry.messaging` without explicit checks for the existence of `entry` or `messaging` arrays, nor does it use optional chaining or `try-catch` blocks specifically around the access to `entry.messaging` or its elements before they are processed. If `body.entry` is not an array or `entry.messaging` is missing/not an array for any given `entry`, this could lead to runtime errors. The prompt specifically asks about validation before use, and this loop structure might not be robust enough against malformed webhook payloads.",
+            "_checklist_id": "INP-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-ERR-01",
+          "gold_category": "error-handling",
+          "gold_difficulty": "vua",
+          "gold_in_scope": true,
+          "finding": {
+            "evidence": "return error.code === 10 && OUTSIDE_ALLOWED_WINDOW_SUBCODES.has(error.subcode) && false;",
+            "suggestion": "Bo '&& false' de xu ly dung loi code 10 voi cac subcode can xac dinh la khong retry.",
+            "category": "error-handling",
+            "file": "core/messenger-send-errors.js",
+            "explanation": "Loi code 10 (ngoai khung gio 24h) khong duoc xu ly dung vi dieu kien '&& false' luon khien ham tra ve false. Dieu nay co the dan den viec retry loi khong can thiet hoac xu ly sai.",
+            "line": 38,
+            "evidence_type": "code",
+            "severity": "medium",
+            "_checklist_id": "ERR-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "severity": "medium",
+            "line": 46,
+            "file": "core/messenger-send-errors.js",
+            "category": "error-handling",
+            "explanation": "Loi code 613 (rate limit) khong duoc xu ly cu the trong file nay. Logic xu ly cho loi nay, nhu backoff, co the bi thieu hoac nam o noi khac khong duoc xem xet.",
+            "evidence_type": "code",
+            "evidence": "if (isRecipientUnavailableMessengerError(err)) return 'recipient_unavailable';",
+            "suggestion": "Bổ sung xử lý riêng cho lỗi code 613, ví dụ: áp dụng cơ chế backoff.",
+            "_checklist_id": "ERR-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "index.js",
+            "evidence_type": "code",
+            "suggestion": "Kiem tra SHOP_ID va ACTIVE_SHOP co ton tai hay khong. Neu khong thi dung error voi message ro rang.",
+            "evidence": "const shopId = normalizeShopId(process.env.SHOP_ID || process.env.ACTIVE_SHOP);",
+            "category": "config",
+            "line": 62,
+            "explanation": "Bien moi truong SHOP_ID hoac ACTIVE_SHOP dung de xac dinh shopId khong duoc validate truoc khi su dung. Neu shop do khong ton tai, app se throw error tai dong 65. Tuy nhien, neu chi mot trong hai bien nay bi thieu, thi normalizeShopId se dung gia tri mac dinh 'adult-shop'. Bag co the tiep tuc chay nhung khong phai shop dang can, gay sai sot.",
+            "severity": "medium",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 268,
+            "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+            "explanation": "FB_PAGE_TOKEN duoc lay tu bien moi truong hoac dung gia tri hardcode. Gia tri hardcode nay co the khong con dung hoac khong an toan neu bi lo. Tot nhat nen luon lay tu bien moi truong.",
+            "category": "config",
+            "evidence_type": "code",
+            "file": "index.js",
+            "severity": "low",
+            "suggestion": "Luon luon lay FB_PAGE_TOKEN tu bien moi truong, khong dung gia tri hardcode.",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "suggestion": "Bat buoc phai co FB_APP_SECRET trong moi truong. Neu khong co thi throw error hoac khong cho app chay.",
+            "severity": "high",
+            "explanation": "Bien moi truong FB_APP_SECRET dung de xac thuc chu ky webhook, nhung lai khong bat buoc phai co. Neu thieu thi webhook se khong duoc xac thuc, co the bi khai thac. App co canh bao nhung khong throw error.",
+            "file": "index.js",
+            "evidence_type": "code",
+            "category": "config",
+            "evidence": "const FB_APP_SECRET   = process.env.FB_APP_SECRET;",
+            "line": 269,
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "index.js",
+            "severity": "medium",
+            "suggestion": "In ra ten cua bien moi truong con thieu de nguoi dung biet cach sua.",
+            "line": 561,
+            "explanation": "Doan code nay kiem tra cac bien moi truong bat buoc, neu thieu se in ra console va exit. Tuy nhien, message loi khong ro rang, khong chi ro bien nao con thieu.",
+            "evidence": "const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);",
+            "evidence_type": "code",
+            "category": "config",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "severity": "medium",
+            "line": 568,
+            "evidence_type": "code",
+            "explanation": "Khi thieu bien moi truong bat buoc, app se exit voi code 1. Dieu nay dung, nhung message loi truoc do khong chi ro bien nao con thieu.",
+            "file": "index.js",
+            "evidence": "process.exit(1);",
+            "suggestion": "In ra ten bien moi truong con thieu truoc khi exit.",
+            "category": "config",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-01/1786712447"
+          }
+        }
+      ]
+    },
+    {
+      "counts": {
+        "tp_all": 4,
+        "tp_in_scope": 4,
+        "tp_out_of_checklist": 0,
+        "fn_in_scope": 10,
+        "fp": 28,
+        "baseline_excluded": 0,
+        "gold_all": 15,
+        "gold_in_scope": 14
+      },
+      "metrics": {
+        "in_scope_recall": 0.2857142857142857,
+        "end_to_end_coverage": 0.26666666666666666,
+        "in_scope_precision": 0.125,
+        "in_scope_fdr": 0.875,
+        "f1_in_scope": 0.17391304347826086,
+        "all_seeded_precision": 0.125
+      },
+      "matched_gold_ids": [
+        "SEED-CRY-02",
+        "SEED-CRY-03",
+        "SEED-SEC-01",
+        "SEED-SEC-02"
+      ],
+      "missed_gold_ids": [
+        "SEED-AUTH-01",
+        "SEED-AUTH-02",
+        "SEED-CFG-01",
+        "SEED-CRY-01",
+        "SEED-DEP-01",
+        "SEED-DOC-01",
+        "SEED-ERR-01",
+        "SEED-INP-01",
+        "SEED-INP-02",
+        "SEED-OOC-01",
+        "SEED-REL-01"
+      ],
+      "per_category": {
+        "auth": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 2,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "config": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "crypto": {
+          "tp": 2,
+          "fn": 1,
+          "fp": 15,
+          "recall": 0.6666666666666666,
+          "precision": 0.11764705882352941
+        },
+        "dependency": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "doc-mismatch": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "error-handling": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 2,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "input": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "reliability": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 9,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "secret": {
+          "tp": 2,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "precision": 1.0
+        }
+      },
+      "per_difficulty": {
+        "de": {
+          "tp": 2,
+          "fn": 1,
+          "recall": 0.6666666666666666
+        },
+        "kho": {
+          "tp": 1,
+          "fn": 5,
+          "recall": 0.16666666666666666
+        },
+        "vua": {
+          "tp": 1,
+          "fn": 4,
+          "recall": 0.2
+        }
+      },
+      "classifications": [
+        {
+          "class": "TP",
+          "gold_id": "SEED-SEC-01",
+          "gold_category": "secret",
+          "gold_difficulty": "de",
+          "gold_in_scope": true,
+          "finding": {
+            "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+            "file": "index.js",
+            "explanation": "A hardcoded Facebook Page Access Token is present as a fallback value. This token should not be hardcoded directly in the source code, as it could be exposed if the environment variable is not properly configured. Hardcoding secrets is a critical security vulnerability.",
+            "category": "secret",
+            "line": 268,
+            "evidence_type": "code",
+            "severity": "critical",
+            "suggestion": "Ensure that the FB_PAGE_TOKEN environment variable is always set in production environments. Remove the hardcoded fallback token to prevent accidental exposure.",
+            "_checklist_id": "SEC-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-SEC-02",
+          "gold_category": "secret",
+          "gold_difficulty": "de",
+          "gold_in_scope": true,
+          "finding": {
+            "severity": "high",
+            "explanation": "Thoa man yeu cau SEC-02, do la ma nguon chi ghi log voi tham so `secret` - co the chua thong tin nhay cam (token). Ko thay co check redact truoc khi log.",
+            "line": 105,
+            "evidence": "console.log(`[credentials] resolved token for shop=${normalizedShopId}: ${secret}`);",
+            "category": "secret",
+            "file": "core\\credentials\\page-credentials.js",
+            "evidence_type": "code",
+            "suggestion": "Bo sung ham redact hoac chi log cac truong khong nhay cam cua token.",
+            "_checklist_id": "SEC-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "evidence_type": "code",
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Tuy nhiên, việc sử dụng crypto.timingSafeEqual sau đó để so sánh hash là một biện pháp bảo mật tốt, giúp chống lại các tấn công timing.",
+            "severity": "info",
+            "file": "core\\admin-auth.js",
+            "evidence": "const actualHash = crypto.createHash('sha256').update(actualText).digest();",
+            "line": 154,
+            "category": "crypto",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "evidence_type": "code",
+            "severity": "info",
+            "evidence": "const expectedHash = crypto.createHash('sha256').update(expectedText).digest();",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "category": "crypto",
+            "line": 155,
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Việc sử dụng crypto.timingSafeEqual sau đó để so sánh hash là một biện pháp bảo mật tốt, giúp chống lại các tấn công timing.",
+            "file": "core\\admin-auth.js",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "explanation": "Sử dụng timingSafeEqual để so sánh hai hash, giúp ngăn chặn các tấn công timing side-channel. Đây là phương pháp so sánh mật khẩu và token an toàn.",
+            "severity": "info",
+            "evidence_type": "code",
+            "file": "core\\admin-auth.js",
+            "evidence": "return crypto.timingSafeEqual(actualHash, expectedHash);",
+            "line": 156,
+            "category": "crypto",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "category": "crypto",
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Việc sử dụng crypto.timingSafeEqual sau đó để so sánh hash là một biện pháp bảo mật tốt, giúp chống lại các tấn công timing.",
+            "evidence": "const actualHash = crypto.createHash('sha256').update(actualText).digest();",
+            "evidence_type": "code",
+            "severity": "info",
+            "line": 62,
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "file": "core\\admin\\session.js",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 63,
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Việc sử dụng crypto.timingSafeEqual sau đó để so sánh hash là một biện pháp bảo mật tốt, giúp chống lại các tấn công timing.",
+            "file": "core\\admin\\session.js",
+            "severity": "info",
+            "evidence_type": "code",
+            "evidence": "const expectedHash = crypto.createHash('sha256').update(expectedText).digest();",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "category": "crypto",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "severity": "info",
+            "line": 64,
+            "file": "core\\admin\\session.js",
+            "evidence_type": "code",
+            "category": "crypto",
+            "evidence": "return crypto.timingSafeEqual(actualHash, expectedHash);",
+            "explanation": "Sử dụng timingSafeEqual để so sánh hai hash, giúp ngăn chặn các tấn công timing side-channel. Đây là phương pháp so sánh mật khẩu và token an toàn.",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "severity": "info",
+            "evidence_type": "code",
+            "evidence": "return crypto.createHash('sha256').update(text).digest('hex');",
+            "line": 218,
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Kết quả được trả về dưới dạng hex.",
+            "category": "crypto",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "file": "core\\admin-auth.js",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "core\\admin\\asset-uploads.js",
+            "severity": "info",
+            "line": 290,
+            "evidence_type": "code",
+            "evidence": "return `${prefix}:${crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 10)}`;",
+            "category": "crypto",
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Hash được cắt ngắn và sử dụng làm một phần của định danh.",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Hash được cắt ngắn và sử dụng làm một phần của định danh.",
+            "file": "scripts\\seed-test-shop-canary.js",
+            "category": "crypto",
+            "evidence_type": "code",
+            "evidence": "return `page_test_shop_${crypto.createHash('sha256').update(trimText(pageId)).digest('hex').slice(0, 12)}`;",
+            "line": 254,
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "severity": "info",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Việc sử dụng stableStringify đảm bảo tính nhất quán của đầu vào trước khi hash.",
+            "evidence": "return crypto.createHash('sha256').update(stableStringify(value)).digest('hex');",
+            "category": "crypto",
+            "file": "scripts\\basic-sales-v2-staging-smoke.js",
+            "evidence_type": "code",
+            "line": 63,
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "severity": "info",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 295,
+            "severity": "info",
+            "evidence_type": "code",
+            "file": "core\\lead-parser.js",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "category": "crypto",
+            "evidence": "return crypto.createHash('sha256').update(fingerprint, 'utf8').digest('hex');",
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn.",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn. Việc sử dụng JSON.stringify đảm bảo tính nhất quán của đầu vào trước khi hash.",
+            "evidence_type": "code",
+            "evidence": "return crypto.createHash('sha256').update(JSON.stringify(payload), 'utf8').digest('hex');",
+            "category": "crypto",
+            "line": 318,
+            "file": "core\\lead-parser.js",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "severity": "info",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "core\\credentials\\page-credentials.js",
+            "severity": "info",
+            "line": 25,
+            "evidence": "return crypto.createHash('sha256').update(value, 'utf8').digest();",
+            "category": "crypto",
+            "explanation": "Sử dụng SHA-256 để tạo hash, đây là một thuật toán hash an toàn.",
+            "evidence_type": "code",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-CRY-03",
+          "gold_category": "crypto",
+          "gold_difficulty": "kho",
+          "gold_in_scope": true,
+          "finding": {
+            "evidence_type": "code",
+            "explanation": "Sử dụng AES-256-GCM để mã hóa dữ liệu, đây là một thuật toán mã hóa đối xứng mạnh mẽ và an toàn.",
+            "severity": "info",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "line": 33,
+            "category": "crypto",
+            "evidence": "const cipher = crypto.createCipheriv('aes-256-gcm', deriveCredentialKey(masterKey), iv);",
+            "file": "core\\credentials\\page-credentials.js",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 53,
+            "severity": "info",
+            "file": "core\\credentials\\page-credentials.js",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "explanation": "Sử dụng AES-256-GCM để giải mã dữ liệu, đây là một thuật toán giải mã đối xứng mạnh mẽ và an toàn, tương thích với mã hóa.",
+            "category": "crypto",
+            "evidence_type": "code",
+            "evidence": "const decipher = crypto.createDecipheriv(",
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-CRY-02",
+          "gold_category": "crypto",
+          "gold_difficulty": "vua",
+          "gold_in_scope": true,
+          "finding": {
+            "severity": "info",
+            "explanation": "Sử dụng HMAC-SHA256 để xác thực tin nhắn, đây là một phương pháp an toàn khi kết hợp với một khóa bí mật.",
+            "category": "crypto",
+            "suggestion": "Không có đề xuất vì đây là cách sử dụng an toàn.",
+            "evidence": "const expected = 'sha256=' + crypto.createHmac('sha256', fbAppSecret).update(req.rawBody);",
+            "evidence_type": "code",
+            "file": "core\\webhook.js",
+            "line": 270,
+            "_checklist_id": "CRY-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "duplicate_gold",
+          "finding": {
+            "evidence_type": "code",
+            "severity": "critical",
+            "file": "core/credentials/page-credentials.js",
+            "explanation": "IV dùng để mã hóa AES là một số ngẫu nhiên phải được tạo mới cho mỗi lần mã hóa. Việc sử dụng IV là 0 (khai báo bằng Buffer.alloc(12, 0)) cho tất cả các lần mã hóa là không an toàn và có thể dẫn đến việc lộ khóa mã hóa.",
+            "suggestion": "Tạo IV ngẫu nhiên cho mỗi lần mã hóa bằng cách sử dụng `crypto.randomBytes(12)`.",
+            "line": 32,
+            "evidence": "const iv = Buffer.alloc(12, 0);",
+            "category": "crypto",
+            "_checklist_id": "CRY-03",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 146,
+            "explanation": "The session token is signed using HMAC-SHA256, which is a secure way to ensure the token's integrity. However, the token includes an expiration timestamp ('exp') which is correctly calculated based on the issued at time and maxAgeMs. The verification process correctly checks this expiration.",
+            "severity": "info",
+            "evidence_type": "code",
+            "category": "auth",
+            "file": "core/admin/session.js",
+            "evidence": "return `v1.${body}.${signValue(secret, body)}`;",
+            "suggestion": "N/A",
+            "_checklist_id": "AUTH-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "core/admin/session.js",
+            "severity": "info",
+            "explanation": "The token signature is verified using a secure, constant-time comparison (safeEqualText), which prevents timing attacks. This is a good security practice for verifying tokens.",
+            "category": "auth",
+            "line": 159,
+            "evidence": "if (!safeEqualText(signature, signValue(secret, body))) {",
+            "suggestion": "N/A",
+            "evidence_type": "code",
+            "_checklist_id": "AUTH-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "suggestion": "Cần xem xét file 'runtime-image-dedupe.js' để hiểu rõ cơ chế hoạt động và xác định xem nó có áp dụng cho webhook events hay không, và nếu có thì phạm vi áp dụng và cách thức hoạt động.",
+            "evidence": "const { uniqueImagesForRequest } = require('./runtime-image-dedupe');",
+            "file": "core/webhook.js",
+            "explanation": "Mã nguồn sử dụng 'runtime-image-dedupe' cho thấy có cơ chế xử lý trùng lặp hình ảnh, tuy nhiên không rõ ràng đây có phải là cơ chế dedup cho webhook events hay không, và nó xử lý dựa trên khóa gì và TTL bao lâu. Đặc biệt, không rõ liệu nó có áp dụng cho mọi loại gửi tin nhắn hay chỉ một số loại.",
+            "evidence_type": "code",
+            "line": 20,
+            "severity": "high",
+            "category": "reliability",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 26,
+            "category": "reliability",
+            "severity": "high",
+            "explanation": "Có cơ chế deduplicate tin nhắn văn bản dựa trên nội dung tin nhắn, ID người gửi và ID trang với thời gian tồn tại (TTL) là 5 giây. Tuy nhiên, không rõ cơ chế này có được áp dụng cho tất cả các loại sự kiện webhook mà Facebook có thể gửi lại hay không, đặc biệt là các loại sự kiện không phải tin nhắn văn bản.",
+            "evidence": "const MESSAGE_TEXT_DEDUPE_TTL_MS = 5 * 1000;",
+            "evidence_type": "code",
+            "file": "core/webhook.js",
+            "suggestion": "Xem xét lại việc áp dụng cơ chế deduplicate tin nhắn văn bản cho các loại sự kiện webhook khác, đặc biệt là các sự kiện có thể được Facebook gửi lại do không nhận được phản hồi HTTP 200 kịp thời. Cần xác định rõ phạm vi áp dụng của TTL 5 giây này.",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "evidence_type": "code",
+            "severity": "high",
+            "category": "reliability",
+            "file": "core/webhook.js",
+            "line": 134,
+            "suggestion": "Triển khai cơ chế Idempotency dựa trên ID của từng webhook event (ví dụ: `messaging.message.mid` hoặc một ID duy nhất khác cho mỗi event). Lưu trữ ID của các sự kiện đã được xử lý và kiểm tra trước khi xử lý một event mới. Nếu event đã được xử lý, bỏ qua nó. Nếu có lỗi trong quá trình xử lý, cần có cơ chế thử lại hoặc báo cáo lỗi rõ ràng.",
+            "explanation": "Cơ chế deduplicate tin nhắn văn bản hoạt động dựa trên việc tạo một key từ pageId, senderId và nội dung tin nhắn đã chuẩn hóa. Nếu key này đã tồn tại và chưa hết hạn (trong vòng 5 giây), tin nhắn sẽ bị bỏ qua. Điều này có thể không đủ để xử lý các trường hợp Facebook gửi lại event sau một khoảng thời gian dài hơn TTL này, hoặc các loại event không phải là tin nhắn văn bản.",
+            "evidence": "const key = JSON.stringify([\n      String(pageId || ''),\n      String(senderId || ''),\n      normalizedText\n    ]);\n    const expiresAt = recentMessageTextKeys.get(key);\n    if (expiresAt && expiresAt > nowMs) return true;\n\n    recentMessageTextKeys.set(key, nowMs + MESSAGE_TEXT_DEDUPE_TTL_MS);\n    pruneRecentMessageTextKeys(nowMs);\n    return false;",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "explanation": "Hệ thống có cơ chế deduplicate cho việc gửi menu, dựa trên ID người gửi và ID trang, với thời gian cooldown được định nghĩa bởi `MENU_SEND_COOLDOWN_MS` (15 giây). Cơ chế này chỉ áp dụng cho việc gửi menu và không rõ liệu nó có đủ để xử lý các tình huống Facebook gửi lại event sau thời gian cooldown này hay không.",
+            "category": "reliability",
+            "severity": "high",
+            "evidence_type": "code",
+            "file": "core/webhook.js",
+            "line": 149,
+            "evidence": "const key = JSON.stringify([\n      String(pageId || ''),\n      String(senderId || '')\n    ]);\n    const expiresAt = recentMenuSendKeys.get(key);\n    if (expiresAt && expiresAt > nowMs) {\n      console.log(`skipped duplicate menu within cooldown: page_ref=${pageRef(pageId)} sender_ref=${pageRef(senderId)}`);\n      return true;\n    }\n\n    recentMenuSendKeys.set(key, nowMs + MENU_SEND_COOLDOWN_MS);\n    pruneExpiringMap(recentMenuSendKeys, MENU_SEND_COOLDOWN_MAX_KEYS, nowMs);\n    return false;",
+            "suggestion": "Áp dụng cơ chế dedup dựa trên định danh sự kiện duy nhất cho tất cả các loại webhook events có thể được gửi lại, thay vì chỉ dựa vào thời gian cooldown cho menu.",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 189,
+            "suggestion": "Áp dụng cơ chế dedup dựa trên định danh sự kiện duy nhất cho tất cả các loại webhook events có thể được gửi lại, thay vì chỉ dựa vào cooldown cho từng loại sự kiện cụ thể.",
+            "evidence": "const key = hotProductsCooldownKey({ pageId, senderId, shopId });\n    const expiresAt = recentHotProductsSendKeys.get(key);\n    if (expiresAt && expiresAt > nowMs) {\n      console.log(\n        `[hot_products] skipped cooldown page_ref=${pageRef(pageId)} sender_ref=${pageRef(senderId)} shop_ref=${shopRef(shopId)}`\n      );\n      return true;\n    }\n\n    recentHotProductsSendKeys.set(key, nowMs + duration);\n    pruneExpiringMap(recentHotProductsSendKeys, HOT_PRODUCTS_SEND_COOLDOWN_MAX_KEYS, nowMs);\n    return false;",
+            "evidence_type": "code",
+            "explanation": "Tương tự như menu, có cơ chế deduplicate cho việc gửi \"hot products\" dựa trên pageId, senderId, và shopId, với thời gian cooldown được xác định bởi `cooldownMs`. Cơ chế này chỉ áp dụng cho loại sự kiện này và có thể không đủ để xử lý các trường hợp Facebook gửi lại event.",
+            "severity": "high",
+            "category": "reliability",
+            "file": "core/webhook.js",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 559,
+            "evidence_type": "code",
+            "evidence": "try {\n          await enqueueWebhookRequestEvents(requestEvents, inferredBaseUrl, {\n            requestMessageSenders,\n            requestAdsReferralSenders\n          });\n          return res.sendStatus(200);\n        } catch (err) {\n          const pageId = requestEvents[0]?.pageId || '';\n          console.error(`[webhook-queue] enqueue failed page_ref=${pageRef(pageId)} reason=${safeLogReason(err?.code || err?.name || 'enqueue_failed')}`);\n          return res.sendStatus(500);\n        }",
+            "suggestion": "Cần có cơ chế xử lý lỗi mạnh mẽ hơn khi enqueue webhook events. Ví dụ, nếu enqueue thất bại, có thể cân nhắc lưu trữ event vào một nơi tạm thời (như DB hoặc file) để xử lý sau, hoặc ít nhất là log lỗi chi tiết hơn và có thể thử lại enqueue nhiều lần. Đồng thời, cần đảm bảo rằng hàng đợi webhook luôn hoạt động ổn định.",
+            "explanation": "Khi `webhookQueueEnabled` là true, hệ thống sẽ cố gắng enqueue các sự kiện webhook vào hàng đợi. Tuy nhiên, nếu việc enqueue thất bại, nó sẽ trả về lỗi 500. Điều này có nghĩa là trong trường hợp hàng đợi gặp sự cố, các webhook event có thể bị mất hoặc không được xử lý, điều này đi ngược lại mục đích của việc có cơ chế dedup/idempotency để đảm bảo xử lý event. Hơn nữa, việc trả về 500 có thể khiến Facebook gửi lại event, nhưng nếu hàng đợi vẫn không hoạt động, vấn đề sẽ tiếp diễn.",
+            "category": "reliability",
+            "severity": "high",
+            "file": "core/webhook.js",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 572,
+            "category": "reliability",
+            "severity": "high",
+            "explanation": "Hệ thống trả về HTTP 200 ngay lập tức cho Facebook, sau đó mới xử lý các sự kiện webhook một cách bất đồng bộ thông qua `processWebhookRequestEvents`. Mặc dù điều này giúp tránh Facebook gửi lại event do không nhận được phản hồi kịp thời, nhưng nếu có lỗi xảy ra trong quá trình xử lý bất đồng bộ (`processWebhookRequestEvents` hoặc các hàm gọi sau đó), các sự kiện đó có thể không được xử lý hoặc xử lý sai mà không có cơ chế kiểm tra lại hoặc thử lại. Đặc biệt, không có cơ chế rõ ràng để đảm bảo tính Idempotency dựa trên ID của từng webhook event cụ thể.",
+            "evidence_type": "code",
+            "evidence": "res.sendStatus(200); // Trả 200 ngay để Meta không retry\n\n      void processWebhookRequestEvents(requestEvents, inferredBaseUrl, {\n        requestMessageSenders,\n        requestAdsReferralSenders,\n        requestImageDedupe\n      });",
+            "suggestion": "Triển khai cơ chế Idempotency dựa trên ID của từng webhook event (ví dụ: `messaging.message.mid` hoặc một ID duy nhất khác cho mỗi event). Lưu trữ ID của các sự kiện đã được xử lý và kiểm tra trước khi xử lý một event mới. Nếu event đã được xử lý, bỏ qua nó. Nếu có lỗi trong quá trình xử lý, cần có cơ chế thử lại hoặc báo cáo lỗi rõ ràng.",
+            "file": "core/webhook.js",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "evidence_type": "code",
+            "explanation": "Khi enqueue webhook events, payload chỉ bao gồm `requestMessageSenderIds` và `requestAdsReferralSenders`. Nó không bao gồm thông tin định danh duy nhất của từng event (ví dụ: `messaging.message.mid`) để có thể thực hiện kiểm tra idempotency khi xử lý từ queue. Điều này có nghĩa là nếu cùng một event được enqueue nhiều lần (ví dụ do lỗi enqueue ban đầu hoặc do Facebook gửi lại), nó có thể bị xử lý lặp lại.",
+            "file": "core/webhook.js",
+            "evidence": "await webhookQueue.enqueueEvent({\n        pageId: getEventPageId(event, { pageId }),\n        event,\n        payload: {\n          pageId,\n          baseUrl: inferredBaseUrl || '',\n          entryTime: entryTime || '',\n          requestMessageSenderIds: requestSetToArray(requestOptions.requestMessageSenders),\n          requestAdsReferralSenderIds: requestSetToArray(requestOptions.requestAdsReferralSenders)\n        }\n      });",
+            "suggestion": "Bổ sung `eventId` (ví dụ: `event.message.mid` hoặc `event.id` tùy thuộc vào loại event) vào `payload` khi enqueue, và sử dụng `eventId` này để kiểm tra idempotency trong hàm `processQueuedWebhookJob`.",
+            "category": "reliability",
+            "severity": "high",
+            "line": 584,
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "evidence": "const payload = job.payloadJson || job.payload_json || {};\n    const event = job.eventJson || job.event_json || {};\n    const pageId = String(payload.pageId || job.pageId || job.page_id || getEventPageId(event)).trim();\n    try {\n      await handleEvent(event, payload.baseUrl || '', {\n        pageId,\n        entryTime: payload.entryTime || '',\n        requestMessageSenders: new Set(queuedArray(payload.requestMessageSenderIds)),\n        requestAdsReferralSenders: new Set(queuedArray(payload.requestAdsReferralSenderIds)),\n        requestImageDedupe: new Set()\n      });",
+            "evidence_type": "code",
+            "line": 621,
+            "suggestion": "Triển khai cơ chế idempotency bằng cách sử dụng một bộ đệm (ví dụ: Redis hoặc database) để lưu trữ ID của các webhook event đã được xử lý. Trước khi xử lý một event từ queue, kiểm tra xem ID của nó đã tồn tại trong bộ đệm hay chưa. Nếu đã tồn tại, bỏ qua event đó. Nếu chưa, xử lý event và thêm ID của nó vào bộ đệm. Cần xác định ID nào là duy nhất cho mỗi event (ví dụ: `event.message.mid`).",
+            "file": "core/webhook.js",
+            "explanation": "Hàm `processQueuedWebhookJob` xử lý các job từ queue nhưng không có cơ chế kiểm tra idempotency dựa trên ID của từng webhook event. Nếu một event giống hệt nhau được xử lý nhiều lần từ queue (ví dụ: do lỗi hoặc do enqueue lại), nó sẽ được xử lý lại mà không có cơ chế ngăn chặn.",
+            "category": "reliability",
+            "severity": "high",
+            "_checklist_id": "REL-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "severity": "medium",
+            "explanation": "Lỗi từ Facebook Graph API không được phân loại xử lý riêng. Các mã lỗi như 10, 551, và 613 cần được xử lý khác nhau nhưng đang bị gộp chung. Cụ thể, lỗi 551 (người dùng không khả dụng) không nên retry, trong khi lỗi 613 (rate limit) cần có cơ chế backoff. Việc xử lý lỗi không phân biệt có thể dẫn đến các vấn đề như retry vô ích hoặc không xử lý đúng cách các tình huống chặn tài khoản.",
+            "file": "core/webhook.js",
+            "evidence_type": "code",
+            "suggestion": "Phân loại và xử lý riêng các mã lỗi Facebook Graph API. Ví dụ: kiểm tra `error.code` và `error.subcode` để áp dụng logic retry hoặc backoff phù hợp, hoặc xử lý các trường hợp đặc biệt như lỗi 551.",
+            "evidence": "if (error.code != null) parts.push(`code=${error.code}`);",
+            "line": 259,
+            "category": "error-handling",
+            "_checklist_id": "ERR-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 16,
+            "category": "error-handling",
+            "evidence_type": "code",
+            "evidence": "const code = toNumber(error.code);",
+            "file": "core/messenger-send-errors.js",
+            "explanation": "File `core/messenger-send-errors.js` định nghĩa các hàm để xử lý lỗi gửi tin nhắn Messenger, bao gồm `isRecipientUnavailableMessengerError` (lỗi 551) và `isOutsideAllowedWindowMessengerError` (lỗi 10). Tuy nhiên, cách các mã lỗi này được xử lý hoặc có được phân biệt trong các quy trình gọi lại (ví dụ: trong `core/webhook.js`) chưa được thể hiện rõ ràng trong đoạn mã đã đọc. Việc gọi lại `getMessengerSendError` là bước đầu, nhưng cần kiểm tra xem logic sau đó có phân biệt các loại lỗi này để xử lý retry/backoff hay không.",
+            "suggestion": "Trong `core/webhook.js` hoặc các module xử lý lỗi khác, cần gọi các hàm như `isRecipientUnavailableMessengerError` và `isOutsideAllowedWindowMessengerError` để phân biệt các loại lỗi và áp dụng chiến lược xử lý phù hợp, thay vì chỉ dựa vào mã lỗi chung.",
+            "severity": "medium",
+            "_checklist_id": "ERR-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-02/1786713317"
+          }
+        }
+      ]
+    },
+    {
+      "counts": {
+        "tp_all": 4,
+        "tp_in_scope": 4,
+        "tp_out_of_checklist": 0,
+        "fn_in_scope": 10,
+        "fp": 7,
+        "baseline_excluded": 0,
+        "gold_all": 15,
+        "gold_in_scope": 14
+      },
+      "metrics": {
+        "in_scope_recall": 0.2857142857142857,
+        "end_to_end_coverage": 0.26666666666666666,
+        "in_scope_precision": 0.36363636363636365,
+        "in_scope_fdr": 0.6363636363636364,
+        "f1_in_scope": 0.32,
+        "all_seeded_precision": 0.36363636363636365
+      },
+      "matched_gold_ids": [
+        "SEED-CRY-03",
+        "SEED-DOC-01",
+        "SEED-SEC-01",
+        "SEED-SEC-02"
+      ],
+      "missed_gold_ids": [
+        "SEED-AUTH-01",
+        "SEED-AUTH-02",
+        "SEED-CFG-01",
+        "SEED-CRY-01",
+        "SEED-CRY-02",
+        "SEED-DEP-01",
+        "SEED-ERR-01",
+        "SEED-INP-01",
+        "SEED-INP-02",
+        "SEED-OOC-01",
+        "SEED-REL-01"
+      ],
+      "per_category": {
+        "auth": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 1,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "config": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 5,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "crypto": {
+          "tp": 1,
+          "fn": 2,
+          "fp": 0,
+          "recall": 0.3333333333333333,
+          "precision": 1.0
+        },
+        "dependency": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "doc-mismatch": {
+          "tp": 1,
+          "fn": 0,
+          "fp": 0,
+          "recall": 1.0,
+          "precision": 1.0
+        },
+        "error-handling": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "input": {
+          "tp": 0,
+          "fn": 2,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "reliability": {
+          "tp": 0,
+          "fn": 1,
+          "fp": 0,
+          "recall": 0.0,
+          "precision": 0.0
+        },
+        "secret": {
+          "tp": 2,
+          "fn": 0,
+          "fp": 1,
+          "recall": 1.0,
+          "precision": 0.6666666666666666
+        }
+      },
+      "per_difficulty": {
+        "de": {
+          "tp": 2,
+          "fn": 1,
+          "recall": 0.6666666666666666
+        },
+        "kho": {
+          "tp": 1,
+          "fn": 5,
+          "recall": 0.16666666666666666
+        },
+        "vua": {
+          "tp": 1,
+          "fn": 4,
+          "recall": 0.2
+        }
+      },
+      "classifications": [
+        {
+          "class": "TP",
+          "gold_id": "SEED-SEC-01",
+          "gold_category": "secret",
+          "gold_difficulty": "de",
+          "gold_in_scope": true,
+          "finding": {
+            "evidence_type": "code",
+            "category": "secret",
+            "explanation": "Hardcoded Facebook Page Access Token found. This token might be sensitive and should ideally be loaded from environment variables or a secure configuration store.",
+            "suggestion": "Replace the hardcoded token with a mechanism that loads it from environment variables or a secure configuration store. Ensure that process.env.FB_PAGE_TOKEN is properly set.",
+            "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+            "line": 268,
+            "severity": "critical",
+            "file": "index.js",
+            "_checklist_id": "SEC-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "duplicate_gold",
+          "finding": {
+            "explanation": "The GEMINI_API_KEY is read from the environment variable but its usage isn't restricted. If the environment variable is compromised, it could lead to unauthorized access or charges.",
+            "category": "secret",
+            "line": 270,
+            "file": "index.js",
+            "suggestion": "While reading from environment variables is better than hardcoding, ensure that access to these environment variables is tightly controlled. Consider additional authorization layers if the key is exposed.",
+            "severity": "high",
+            "evidence": "const GEMINI_API_KEY  = process.env.GEMINI_API_KEY;",
+            "evidence_type": "code",
+            "_checklist_id": "SEC-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-SEC-02",
+          "gold_category": "secret",
+          "gold_difficulty": "de",
+          "gold_in_scope": true,
+          "finding": {
+            "explanation": "The page access token (secret) is logged in plain text in core/credentials/page-credentials.js, potentially exposing sensitive credentials.",
+            "file": "core/credentials/page-credentials.js",
+            "line": 105,
+            "category": "secret",
+            "evidence": "console.log(\\`[credentials] resolved token for shop=${normalizedShopId}: ${secret}\\`);",
+            "severity": "high",
+            "evidence_type": "code",
+            "suggestion": "Redact the 'secret' variable before logging or remove the sensitive information from the log statement.",
+            "_checklist_id": "SEC-02",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-CRY-03",
+          "gold_category": "crypto",
+          "gold_difficulty": "kho",
+          "gold_in_scope": true,
+          "finding": {
+            "explanation": "IV duoc khoi tao bang Buffer.alloc(12, 0) thay vi duoc sinh moi bang crypto.randomBytes cho moi lan ma hoa. Voi AES-GCM, viec tai su dung IV co the dan den an toan yeu.",
+            "severity": "critical",
+            "file": "core\\credentials\\page-credentials.js",
+            "line": 32,
+            "category": "crypto",
+            "evidence": "const iv = Buffer.alloc(12, 0);",
+            "suggestion": "Thay the dong khoi tao IV bang cach su dung `const iv = crypto.randomBytes(12);` de dam bao IV moi duoc sinh cho moi lan ma hoa.",
+            "evidence_type": "code",
+            "_checklist_id": "CRY-03",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 5,
+            "explanation": "The file `core/admin-routes.js` imports `PERMISSIONS` from `./admin-auth` which likely contains authorization logic. However, the provided snippets do not show how these permissions are applied to the admin routes themselves. Further investigation is needed to confirm if all admin routes are protected by these permissions.",
+            "evidence": "const {\n      PERMISSIONS,\n      getAdminBearerToken,\n      getAdminRequestToken\n    } = require('./admin-auth');",
+            "severity": "critical",
+            "category": "auth",
+            "file": "core/admin-routes.js",
+            "suggestion": "Ensure that all admin routes defined in this file are explicitly protected by the imported permission checks from `./admin-auth`. Review each route handler to verify that the appropriate permission middleware or checks are applied before executing the route logic.",
+            "evidence_type": "code",
+            "_checklist_id": "AUTH-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "TP",
+          "gold_id": "SEED-DOC-01",
+          "gold_category": "doc-mismatch",
+          "gold_difficulty": "vua",
+          "gold_in_scope": true,
+          "finding": {
+            "severity": "medium",
+            "line": 23,
+            "file": ".agent/skills/credential-safety.md",
+            "category": "doc-mismatch",
+            "evidence": "The 32-byte content key is derived from `CREDENTIAL_MASTER_KEY` with scrypt using a per-shop salt; the master key is never used as key material directly.",
+            "explanation": "The documentation states that the content key is derived using scrypt, but the codebase does not show any implementation of scrypt for this purpose. The key derivation seems to rely directly on `CREDENTIAL_MASTER_KEY` without explicitly using scrypt.",
+            "suggestion": "Update the documentation to accurately reflect the key derivation method used in the code, or implement scrypt if it is intended to be used.",
+            "evidence_type": "doc",
+            "_checklist_id": "DOC-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 125,
+            "severity": "medium",
+            "category": "config",
+            "evidence_type": "code",
+            "suggestion": "Add a check at the beginning of the service initialization to ensure TELEGRAM_BOT_TOKEN is set. If it's missing, throw an error to prevent runtime issues.",
+            "explanation": "The TELEGRAM_BOT_TOKEN environment variable is used but not explicitly validated at startup. If this variable is missing, the application may encounter runtime errors when attempting to use the notification service.",
+            "evidence": "const botToken = process.env.TELEGRAM_BOT_TOKEN;",
+            "file": "core/notification-service.js",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "line": 98,
+            "explanation": "The GOOGLE_SHEET_WEBHOOK_URL environment variable is used but not explicitly validated for presence or format at startup. Missing or invalid URLs can lead to runtime errors in the sheets webhook service.",
+            "evidence_type": "code",
+            "category": "config",
+            "severity": "medium",
+            "evidence": "const url = String(process.env.GOOGLE_SHEET_WEBHOOK_URL || '').trim();",
+            "suggestion": "Add a check after reading the environment variable to ensure it's a non-empty string. If it's missing or invalid, throw an error during service initialization.",
+            "file": "core/sheets-webhook.js",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "file": "core/ai-client.js",
+            "category": "config",
+            "severity": "medium",
+            "evidence_type": "code",
+            "suggestion": "Add a check to ensure that at least one of GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 or GOOGLE_SERVICE_ACCOUNT_JSON is provided. If neither is set, throw an error during AI client initialization.",
+            "evidence": "const rawBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;",
+            "explanation": "The application checks for GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 or GOOGLE_SERVICE_ACCOUNT_JSON, but it does not throw an error if both are missing, leading to potential runtime errors when the AI client is used with undefined credentials.",
+            "line": 79,
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "evidence_type": "code",
+            "category": "config",
+            "severity": "medium",
+            "line": 80,
+            "file": "core/ai-client.js",
+            "suggestion": "Add a check to ensure that at least one of GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 or GOOGLE_SERVICE_ACCOUNT_JSON is provided. If neither is set, throw an error during AI client initialization.",
+            "explanation": "The application checks for GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 or GOOGLE_SERVICE_ACCOUNT_JSON, but it does not throw an error if both are missing, leading to potential runtime errors when the AI client is used with undefined credentials.",
+            "evidence": "const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;",
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        },
+        {
+          "class": "FP",
+          "reason": "unmatched",
+          "finding": {
+            "explanation": "SHOP_ID and ACTIVE_SHOP are validated for existence of corresponding directories and config files. This constitutes a fail-fast mechanism for these specific configuration values.",
+            "file": "index.js",
+            "evidence_type": "code",
+            "category": "config",
+            "severity": "info",
+            "evidence": "const shopId = normalizeShopId(process.env.SHOP_ID || process.env.ACTIVE_SHOP);",
+            "suggestion": "N/A - Already validated.",
+            "line": 62,
+            "_checklist_id": "CFG-01",
+            "_trial_batch_id": "benchmark-v0.1/spiked-trial-03/1786713979"
+          }
+        }
+      ]
+    }
+  ],
+  "aggregate": {
+    "trial_count": 3,
+    "metrics": {
+      "in_scope_recall": {
+        "mean": 0.26190476190476186,
+        "min": 0.21428571428571427,
+        "max": 0.2857142857142857
+      },
+      "end_to_end_coverage": {
+        "mean": 0.24444444444444444,
+        "min": 0.2,
+        "max": 0.26666666666666666
+      },
+      "in_scope_precision": {
+        "mean": 0.24621212121212122,
+        "min": 0.125,
+        "max": 0.36363636363636365
+      },
+      "in_scope_fdr": {
+        "mean": 0.7537878787878788,
+        "min": 0.6363636363636364,
+        "max": 0.875
+      },
+      "f1_in_scope": {
+        "mean": 0.24156075808249722,
+        "min": 0.17391304347826086,
+        "max": 0.32
+      },
+      "all_seeded_precision": {
+        "mean": 0.24621212121212122,
+        "min": 0.125,
+        "max": 0.36363636363636365
+      }
+    }
+  },
+  "telemetry": {
+    "clean": {
+      "available": true,
+      "run_count": 3,
+      "cost_usd": {
+        "mean": 0.08565133333333333,
+        "min": 0.077184,
+        "max": 0.093196
+      },
+      "llm_calls": {
+        "mean": 119.0,
+        "min": 104.0,
+        "max": 132.0
+      },
+      "prompt_tokens": {
+        "mean": 710291.6666666666,
+        "min": 678969.0,
+        "max": 729042.0
+      },
+      "output_tokens": {
+        "mean": 36553.666666666664,
+        "min": 23216.0,
+        "max": 50727.0
+      },
+      "item_llm_latency_s": {
+        "mean": 214.4,
+        "min": 177.7,
+        "max": 246.9
+      },
+      "wall_elapsed_s": {
+        "mean": 220.36233333333334,
+        "min": 183.53,
+        "max": 251.187
+      },
+      "all_complete": true
+    },
+    "spiked": {
+      "available": true,
+      "run_count": 3,
+      "cost_usd": {
+        "mean": 0.07260533333333333,
+        "min": 0.06801,
+        "max": 0.076223
+      },
+      "llm_calls": {
+        "mean": 106.66666666666667,
+        "min": 99.0,
+        "max": 115.0
+      },
+      "prompt_tokens": {
+        "mean": 609348.6666666666,
+        "min": 547000.0,
+        "max": 652707.0
+      },
+      "output_tokens": {
+        "mean": 29174.666666666668,
+        "min": 26872.0,
+        "max": 33273.0
+      },
+      "item_llm_latency_s": {
+        "mean": 492.8333333333333,
+        "min": 177.1,
+        "max": 832.3
+      },
+      "wall_elapsed_s": {
+        "mean": 511.32366666666667,
+        "min": 181.434,
+        "max": 868.457
+      },
+      "all_complete": false
+    }
+  }
+}

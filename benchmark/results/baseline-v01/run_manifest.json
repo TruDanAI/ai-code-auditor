@@ -1,0 +1,47 @@
+{
+  "runner_version": "0.1",
+  "model": "gemini-2.5-flash-lite",
+  "max_steps": 10,
+  "agent_sha256": "f9ef4cb45022212eaa4984a79a68db24920f1b8433ccd2671303b73929f9fb68",
+  "audit_sha256": "e2a8848c1608e2a466c0c94fa7e9f3adc80688057eab723f972557a58bb3ae8e",
+  "generation_defaults": "defined by agent.py/provider; code hash is authoritative",
+  "checklist": "C:\\Users\\Pc\\Desktop\\Build CV\\ai-code-auditor\\audit_checklist.json",
+  "checklist_sha256": "32463c7dd8158ccc20e6f66a12dd09c87d984a9206e8c8f1dd2c61781c9eb005",
+  "checklist_item_count": 13,
+  "snapshots": {
+    "clean": {
+      "path": "C:\\Users\\Pc\\Desktop\\Build CV\\ai-code-auditor\\benchmark\\snapshots\\clean",
+      "sha256": "198d35f5f746dcc758def12794830ec231df9c487c764331411628cd6eab6650"
+    },
+    "spiked": {
+      "path": "C:\\Users\\Pc\\Desktop\\Build CV\\ai-code-auditor\\benchmark\\snapshots\\spiked",
+      "sha256": "09ee7973f2c1458c4c9b459b0c07258aa3b435651c81df69145e6911215a713a"
+    }
+  },
+  "schedule": [
+    {
+      "label": "clean",
+      "trial": 1
+    },
+    {
+      "label": "spiked",
+      "trial": 1
+    },
+    {
+      "label": "spiked",
+      "trial": 2
+    },
+    {
+      "label": "clean",
+      "trial": 2
+    },
+    {
+      "label": "clean",
+      "trial": 3
+    },
+    {
+      "label": "spiked",
+      "trial": 3
+    }
+  ]
+}
