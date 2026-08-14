@@ -5,6 +5,13 @@
 > **Thời gian/ngày:** 5+ giờ · **Dữ liệu thực hành:** repo `chatbot-fanpage` (đã clone tại `C:\Users\Pc\Desktop\chatbot-fanpage`)
 > **Cập nhật lần cuối:** 7/7/2026 — **REV nhỏ ROI-cao** (thêm F1 vào benchmark, citation-verifier làm validator L0, cắt bài tập CSV) — xem khối **⬆ REV 7/7** bên dưới. REV lớn trước đó: **🔴 REV 2/7** (đóng băng retrieval, bỏ Coursera Tuần 4, thêm Seeded-Bug Benchmark + phễu chi phí 3 tầng, nâng ưu tiên MCP)
 
+> **Execution overlay 18/7/2026:** File này tiếp tục là giáo trình + lịch sử quyết
+> định. Vì lịch ngày cố định đã lệch so với tiến độ thật, việc điều phối hiện tại
+> nằm ở [`../STATUS.md`](../STATUS.md) và [`roadmap-30d.md`](roadmap-30d.md).
+> Benchmark dùng thuật ngữ **FDR**, không gọi nhầm là FPR; luật chi tiết ở
+> [`../benchmark/scoring_rules.md`](../benchmark/scoring_rules.md). Tuyên bố thị
+> trường/model/MCP có tính thời điểm phải được kiểm chứng lại trước khi dùng.
+
 > [!IMPORTANT]
 > **Đọc trước khi bắt đầu:** phần [📚 Cách Dùng Tài Liệu + Công Thức Trả Lời Phỏng Vấn](#-cách-dùng-tài-liệu--công-thức-trả-lời-phỏng-vấn) ngay bên dưới. Mỗi ngày học giờ có thêm khối **💬 Đáp án mẫu** để bạn học cách *nói* được kiến thức, không chỉ *hiểu*.
 
@@ -33,14 +40,14 @@ Sau khi rà soát kỹ thuật tính đến 16/6/2026, có **4 điểm lỗi th�
 >
 > 1. **ĐÓNG BĂNG retrieval ở precision@3 = 60%** (Ngày 9–15 đã xong vai trò). Lý do đã kiểm chứng: ngành chuyển sang **agentic search** (grep/read loop) cho code — chính Claude Code bỏ vector DB (5/2025, Boris Cherny: *"agentic search generally works better"*); top SWE-bench 2026 không hệ nào dùng vector retrieval trên repo đích. Lỗi verifySig/RBAC của ta đúng lớp lỗi grep trị tận gốc. RAG giữ làm **1 tool ngữ nghĩa** trong agent. **Backlog (không xếp lịch):** Voyage instruction-following reranker, query VN→EN, mở rộng golden set retrieval. **Câu chuyện phỏng vấn:** *"tôi tự đo được giới hạn dense retrieval trên code → đó là lý do ngành chuyển sang agentic search"*.
 > 2. **BỎ hẳn Tuần 4 Coursera** (cert = tín hiệu yếu 2026 so với dự án ship + eval) → thay bằng **Auditor v1 + Seeded-Bug Benchmark** (xem TUẦN 4 mới). LangGraph/MCP học qua docs chính thức 30–60'/tối.
-> 3. **Định vị lại sản phẩm:** auditor **XUẤT BÁO CÁO FINDINGS** (schema JSON, citation file:line), KHÔNG phải Q&A trên code. Thước đo chính của CV = **detection recall + false-positive rate trên repo cấy lỗi** ("spiked repository" — phương pháp chuẩn ngành 2026), thay vai precision@3.
+> 3. **Định vị lại sản phẩm:** auditor **XUẤT BÁO CÁO FINDINGS** (schema JSON, citation file:line), KHÔNG phải Q&A trên code. Thước đo chính của CV = **detection recall + FDR trên repo cấy lỗi** ("spiked repository" — phương pháp chuẩn ngành 2026), thay vai precision@3.
 > 4. **MCP nâng ưu tiên:** từ 7/2026 MCP là chuẩn ngành (Linux Foundation; OpenAI/Google/Microsoft đồng bảo trợ; 97M SDK downloads/tháng; 41% doanh nghiệp production) → expose auditor như **MCP server** ở Tuần 5, KHÔNG còn nằm đầu danh sách cắt.
 > 5. **Thị trường mục tiêu: công ty VN product + AI startup** → CV song ngữ, **README tiếng Anh**, **Streamlit UI + demo chạy được** (Tuần 6). AWS giữ mức đọc-hiểu 30'/tối, không tăng.
 
 > [!NOTE]
 > **⬆ REV nhỏ 7/7/2026 — 3 nâng cấp ROI cao (rà soát + kiểm chứng web: benchmark Martian ~300k PR, khảo sát tuyển dụng 2026):**
 >
-> 1. **Thêm F1 vào bộ số Tuần 4** (Ngày 25). *Vấn đề:* recall và FP rate là 2 số rời — khoe recall cao có thể giấu FP cao; bài học ngành 2026: tool bắt 82% bug nhưng xả 11 FP/lần **bị dev tắt trong 1 tháng**. *Giải pháp:* F1 gộp precision + recall thành 1 số, cùng ngôn ngữ với benchmark ngành (Martian/CodeRabbit chấm bằng F1). *Không dùng riêng F1 khi:* 2 loại lỗi có giá khác nhau rõ (security audit chấp nhận FP để không sót critical) → báo cả 3 số + nói rõ trade-off.
+> 1. **Thêm F1 vào bộ số Tuần 4** (Ngày 25). *Vấn đề:* recall và FDR là 2 số rời — khoe recall cao có thể giấu nhiều finding sai; bài học ngành 2026: tool bắt 82% bug nhưng xả 11 FP/lần **bị dev tắt trong 1 tháng**. *Giải pháp:* F1 gộp precision + recall thành 1 số. *Không dùng riêng F1 khi:* 2 loại lỗi có giá khác nhau rõ (security audit chấp nhận FP để không sót critical) → báo Precision, FDR, Recall và F1 + nói rõ trade-off.
 > 2. **Citation-verifier = validator L0, làm ở Ngày 17 (Nạc B), TRƯỚC LLM-as-judge.** *Vấn đề:* model có thể nộp finding với `file:line` + evidence bịa; LLM-judge chấm groundedness thì tốn tiền và cũng có thể sai. *Giải pháp:* hàm Python thường — mở `file`, so `evidence` với `lines[line-1]`; khớp → cho qua, lệch → trả critique bắt nộp lại. Miễn phí, tất định, diệt đúng loại FP nguy hiểm nhất (citation ma). *Không phủ được:* finding loại "THIẾU cái gì đó" (absence — không có dòng code để đối chiếu) → phần đó mới đến lượt judge (Ngày 27–28).
 > 3. **Ngày 18–19: logging token/chi phí là deliverable CHÍNH; bài tập CSV-agent = tùy chọn, cắt đầu tiên nếu lệch lịch.** Auditor chính là bài chứng minh pattern ReAct tổng quát rồi; còn `usage_metadata` không nhặt từ bây giờ thì Tuần 4 không có số $/audit theo tầng.
 
@@ -990,11 +997,11 @@ Chạy trọn checklist trên `chatbot-fanpage` → gom findings → render báo
 - Ghi **golden set findings**: mỗi lỗi cấy = 1 record `{file, line, category, mô tả}` — "đáp án vàng" mới của dự án (thay vai golden set retrieval 5 câu).
 - ⚠️ Cấy lỗi **giống thật** (KHÔNG comment `// BUG HERE`); vài lỗi phải cần suy luận cross-file mới thấy — để phân tầng độ khó.
 
-### Ngày 25 (Thứ Bảy 12/7) — Đo: detection recall + false-positive rate + F1
+### Ngày 25 (Thứ Bảy 12/7) — Đo: detection recall + FDR + F1
 
-- **Recall** = số lỗi cấy tìm được / tổng lỗi cấy. **FP rate** = findings sai / tổng findings.
-- **⬆ REV 7/7 — thêm F1:** precision = 1 − FP rate; **F1 = 2·P·R / (P + R)** — 1 con số phạt cả bỏ sót lẫn báo láo, đúng thước benchmark ngành 2026 (Martian/CodeRabbit xếp hạng tool bằng F1). ~10 phút code chấm điểm. Khi báo cáo vẫn ghi đủ cả 3 số — F1 để so sánh nhanh, recall/FP để nói trade-off (audit security có thể ưu tiên recall).
-- Đây là **số liệu CV chính** thay precision@3: *"Auditor phát hiện X/Y lỗi cấy chủ đích, false-positive Z% (F1 = 0.xx), có citation từng finding."*
+- **Recall** = số lỗi cấy tìm được / tổng lỗi cấy. **FDR** = findings sai / tổng findings báo ra. Không gọi là FPR vì benchmark finding-level không định nghĩa true-negative.
+- **⬆ REV 7/7 — thêm F1:** precision = 1 − FDR; **F1 = 2·P·R / (P + R)** — 1 con số phạt cả bỏ sót lẫn báo láo. Khi báo cáo vẫn ghi Precision, FDR, Recall và F1 — F1 để so nhanh, các số thành phần để nói trade-off (audit security có thể ưu tiên recall).
+- Đây là **số liệu CV chính** thay precision@3: *"Auditor phát hiện X/Y lỗi cấy chủ đích, FDR Z% (F1 = 0.xx), có citation từng finding."*
 - Chấm nửa tự động: match `file + line_range ±5 dòng + category`; case mơ hồ tự đọc (bài học Ngày 12: bộ lọc test lỏng = bug giả dạng).
 
 ### Ngày 26 (Chủ Nhật 13/7) — Phễu chi phí 3 tầng (L0 → L1 → L2)
@@ -1002,7 +1009,7 @@ Chạy trọn checklist trên `chatbot-fanpage` → gom findings → render báo
 - **L0 — Deterministic (miễn phí, quét cả repo):** regex/AST/lint bắt secret, `==` signature compare, dependency cũ. KHÔNG tốn token nào.
 - **L1 — Agentic grep (rẻ):** agent khoanh vùng nghi vấn bằng grep/read, chỉ mở file liên quan.
 - **L2 — LLM deep review (đắt, CHỈ vùng nghi vấn):** suy luận cross-file (doc khớp code? auth boundary hổng?).
-- **Đo $/audit + recall/FP theo từng tầng** → bảng trade-off. Khớp phát hiện ngành: *LLM tăng recall, công cụ deterministic kìm false-positive*. Đúng nguyên tắc B4: đừng dùng LLM cho việc một hàm thường giải được.
+- **Đo $/audit + Recall/FDR theo từng tầng** → bảng trade-off. Khớp phát hiện ngành: *LLM có thể tăng recall, công cụ deterministic giúp kìm finding sai*. Đúng nguyên tắc B4: đừng dùng LLM cho việc một hàm thường giải được.
 
 ### Ngày 27–28 (Thứ Hai–Thứ Ba 14–15/7) — LLM-as-judge cho findings + ôn + commit
 
@@ -1014,7 +1021,7 @@ Chạy trọn checklist trên `chatbot-fanpage` → gom findings → render báo
 >
 > **Hỏi: "Làm sao bạn biết auditor của bạn TỐT? AI bảo code có lỗi thì tin được không?"**
 >
-> *"Tôi không tin cảm giác — tôi dựng benchmark. Tôi fork một codebase production thật và cấy 15–20 lỗi biết trước thuộc 5 nhóm (secret, crypto, auth, doc-lệch-code, dependency), rồi đo: **detection recall** (tìm được bao nhiêu lỗi cấy), **false-positive rate** (báo láo bao nhiêu), và gộp thành **F1** — vì một tool bắt 82% bug nhưng xả 11 false-positive mỗi lần chạy sẽ bị dev tắt trong một tháng; tín hiệu/nhiễu quyết định sống còn. Đây là phương pháp 'spiked repository' mà các benchmark ngành 2026 dùng. **Đánh đổi:** benchmark lỗi-cấy chỉ đo được loại lỗi mình nghĩ ra để cấy — nên tôi chạy thêm auditor trên OWASP NodeGoat, nơi lỗi do bên thứ ba document, để kiểm chứng độc lập."*
+> *"Tôi không tin cảm giác — tôi dựng benchmark. Tôi fork một codebase production thật và cấy 15–20 lỗi biết trước thuộc 5 nhóm (secret, crypto, auth, doc-lệch-code, dependency), rồi đo: **detection recall** (tìm được bao nhiêu lỗi cấy), **FDR** (tỷ lệ finding báo ra là sai), và gộp Precision + Recall thành **F1** — vì một tool có recall cao nhưng xả quá nhiều false finding vẫn sẽ bị dev tắt; tín hiệu/nhiễu quyết định sống còn. **Đánh đổi:** benchmark lỗi-cấy chỉ đo được loại lỗi mình nghĩ ra để cấy — nên tôi chạy thêm auditor trên OWASP NodeGoat, nơi lỗi do bên thứ ba document, để kiểm chứng độc lập."*
 >
 > **Hỏi: "Vì sao không cho LLM quét thẳng cả repo cho nhanh?"**
 >
@@ -1057,7 +1064,7 @@ Repo path + audit checklist
   PASS -> báo cáo cuối  |  FAIL -> trả critique có cấu trúc cho Auditor sửa (tối đa 2 vòng)
 ```
 
-**Đo lại seeded-bug benchmark SAU khi thêm Reviewer:** kỳ vọng false-positive rate giảm → số CV thứ hai ("Reviewer agent giảm FP từ A% xuống B%, F1 từ 0.xx lên 0.yy"). Reviewer đứng SAU citation-verifier trong phễu chấm: verifier (miễn phí) đã lọc citation ma, Reviewer chỉ xử phần cần suy luận.
+**Đo lại seeded-bug benchmark SAU khi thêm Reviewer:** kiểm tra giả thuyết Reviewer làm FDR giảm mà không phá Recall → chỉ ghi số CV thứ hai nếu dữ liệu xác nhận. Reviewer đứng SAU citation-verifier trong phễu chấm: verifier (miễn phí) đã lọc citation ma, Reviewer chỉ xử phần cần suy luận.
 
 ### Ngày 32–33 (Chủ Nhật–Thứ Hai 19–20/7) — MCP server (REV 2/7: CHÍNH THỨC, không còn "nếu kịp")
 
@@ -1106,7 +1113,7 @@ UI tối thiểu: nhập repo path → chạy audit → bảng findings (severit
 
 Viết README.md cho `ai-code-auditor` **bằng tiếng Anh** (người screen CV nào cũng đọc GitHub bằng EN; CV nộp thì song ngữ):
 - Mục tiêu dự án, kiến trúc (sơ đồ 2-agent + phễu chi phí L0→L2), demo GIF (kể cả gọi qua MCP client)
-- Số liệu: **seeded-bug recall + FP rate + F1** (trước/sau Reviewer), **NodeGoat X/Y**, **$/audit theo tầng**, latency/audit; precision@3 60% ghi như *"bài học đo giới hạn dense retrieval trên code → lý do chuyển agentic search"*
+- Số liệu: **seeded-bug Recall + Precision/FDR + F1** (trước/sau Reviewer nếu ablation thắng), **NodeGoat X/Y**, **$/audit theo tầng**, latency/audit; precision@3 60% ghi như *"bài học đo giới hạn dense retrieval trên code → lý do chuyển agentic search"*
 - Cách chạy (CLI, UI, MCP), link chatbot-fanpage như case study production
 
 ---
@@ -1128,7 +1135,7 @@ Viết README.md cho `ai-code-auditor` **bằng tiếng Anh** (người screen C
 ```
 - Build AI Code Auditor (LangGraph 2-agent + MCP server): tự quét repo,
   xuất báo cáo findings có citation — detection recall X/Y lỗi cấy,
-  false-positive Z%, F1 = 0.xx trên spiked-repo benchmark tự dựng;
+  FDR Z%, F1 = 0.xx trên spiked-repo benchmark tự dựng;
   Reviewer agent giảm FP từ A% xuống B%
 - Phễu audit 3 tầng theo chi phí (AST/regex -> agentic grep -> LLM deep
   review): $/audit giảm N lần so với LLM-quét-toàn-bộ
@@ -1221,7 +1228,7 @@ Dựa trên NOTES.md, quay video tự giải thích mỗi dự án 5 phút, xem 
 Hoàn thành nốt bất kỳ mục nào còn dang dở của Tuần 1-7 (ưu tiên theo mục "Điểm Cắt Nếu Trễ Tiến Độ" bên dưới — làm ngược lại: bù phần quan trọng trước). Nếu không trễ gì → dùng để thêm 1 tính năng nhỏ gây ấn tượng (vd hiển thị citation đẹp trên UI).
 
 ### Ngày 52–53 — Đánh bóng dự án & CV
-- Rà lại README `ai-code-auditor` (tiếng Anh): có sơ đồ kiến trúc (2-agent + phễu L0→L2), số liệu (seeded-bug recall + FP rate + F1, NodeGoat X/Y, $/audit theo tầng, latency; precision@3 60% như "bài học giới hạn dense retrieval") chưa.
+- Rà lại README `ai-code-auditor` (tiếng Anh): có sơ đồ kiến trúc (chỉ ghi 2-agent nếu ablation giữ Reviewer), số liệu (seeded-bug Recall + Precision/FDR + F1, NodeGoat X/Y, $/audit theo tầng, latency; precision@3 60% như "bài học giới hạn dense retrieval") chưa.
 - Chốt 2 bullet CV cho mỗi dự án (xem Ngày 43-44), điền số thật.
 - Dọn git: commit message rõ ràng, xóa file rác, đảm bảo repo public chạy được theo README.
 

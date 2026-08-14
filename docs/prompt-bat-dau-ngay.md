@@ -1,4 +1,24 @@
-# Prompt Bắt Đầu Mỗi Ngày Học (dán vào session Claude Code mới)
+# Prompt Bắt Đầu Mỗi Ngày Học — Legacy Archive
+
+> **Cập nhật 18/07/2026:** Không dán toàn bộ file này vào session mới nữa. Phần
+> nhật ký dài bên dưới được giữ để bảo toàn lịch sử, nhưng tiến độ động có thể đã
+> cũ. Claude/Codex phải đọc `../STATUS.md`, `roadmap-30d.md` và
+> `mentor-contract.md` trước. `STATUS.md` thắng khi có mâu thuẫn.
+
+Prompt khởi động ngắn mới:
+
+```text
+Đọc STATUS.md, docs/roadmap-30d.md và docs/mentor-contract.md.
+Đối chiếu milestone hiện tại với git status và output thật.
+Làm đúng ba hành động tiếp theo trong STATUS.md; không mở lại quyết định khóa
+nếu chưa có benchmark evidence. Chế độ hôm nay: MENTOR MODE, trừ khi tôi yêu cầu
+implement/fix/build rõ ràng thì dùng BUILD MODE. Cuối buổi chỉ cập nhật NOTES với
+kiến thức tôi đã teach-back và đã có bằng chứng kiểm chứng.
+```
+
+---
+
+## Prompt và nhật ký cũ (chỉ để tra cứu lịch sử)
 
 > **Cách dùng:**
 > 1. Mở session Claude Code mới trong thư mục `Build CV`.

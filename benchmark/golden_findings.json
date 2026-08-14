@@ -1,0 +1,174 @@
+{
+  "_meta": {
+    "version": "Protocol v0.1 freeze (18/7/2026) - after 7/15 mutations, before first benchmark run",
+    "protocol_status": "frozen_after_7_of_15_before_first_auditor_benchmark_run",
+    "benchmark_results_seen_at_freeze": false,
+    "repo": "chatbot-fanpage-spiked",
+    "branch": "spiked",
+    "base_ref": "benchmark-base (c0fa0d6)",
+    "total_seeded": 15,
+    "in_scope": 14,
+    "out_of_checklist": 1,
+    "note": "Dap an tap cay. final_line = KET QUA sinh boi script tu anchor_after tren SNAPSHOT CUOI (khong chep tay - chong troi dong khi nhieu seed cung file). category dung CHUNG khung audit_checklist.json. Cham theo scoring_rules.md.",
+    "line_gen": "Sau khi cay du 15 loi: script tim anchor_after trong snapshot cuoi, xac nhan xuat hien DUNG 1 lan, ghi final_line. final_line=null nghia la CHUA sinh.",
+    "difficulty_legend": "de = grep 1 phat ra | vua = doc+suy luan 1 ham | kho = lien thu tuc/ngu nghia",
+    "progress": "15/15 da cay xong (14/08/2026) + validity-check MANH tung seed. final_line van null cho toi khi finalize_gold.py chay tren snapshot cuoi. Scoring rules KHONG doi -> khong pha vo freeze.",
+    "validity_method": "Moi seed chung minh bang CODE THAT (khong mo phong): AUTH-01 route-level call-count clean-vs-mutated; AUTH-02 clean-vs-mutated + exp decode + chu ky sai van bi chan; CRY-01 buoc-4 tamper-tag; CRY-02 verifySignature that; CRY-03 IV 2 lan giong het; SEC-02 mock console.log + resolvePageCredential that; DOC-01 decrypt bang bare sha256 + grep scrypt=0; OOC-01 timing that 3530ms vs 2.19ms cung payload; DEP-01 npm audit --package-lock-only differential 6-vs-0."
+  },
+  "seeded": [
+    {
+      "id": "SEED-SEC-01", "file": "index.js", "function": "(module ENV block)",
+      "anchor_after": "process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQ",
+      "final_line": null, "primary_category": "secret", "accepted_categories": ["secret"],
+      "checklist_id": "SEC-01", "difficulty": "de", "in_scope": true,
+      "commit_subject": "chore: adjust env token default",
+      "description": "Credential-like Facebook Page token literal (fake) hardcode lam fallback khi thieu env.",
+      "mutation_validity": "node -c OK; token GIA; app khoi dong duoc (chi la fallback)."
+    },
+    {
+      "id": "SEED-CRY-01", "file": "core/credentials/page-credentials.js", "function": "decryptCredential",
+      "anchor_after": "return decipher.update(base64UrlDecode(ciphertextPart)).toString('utf8');",
+      "final_line": null, "primary_category": "crypto",
+      "accepted_categories": ["crypto", "authenticated-encryption", "integrity"],
+      "checklist_id": "CRY-01", "difficulty": "kho", "in_scope": true,
+      "checklist_note": "Benh integrity-bypass KHONG khop chinh xac item crypto nao (CRY-01 weak-algo / CRY-03 IV) -> ung vien checklist-gap mot phan; gan CRY-01 vi item do 'khao sat crypto, read >=1 ham chinh' co the loi ra thieu final().",
+      "commit_subject": "refactor: simplify credential decrypt buffer handling",
+      "description": "AES-GCM tra plaintext TRUOC khi decipher.final() xac minh authentication tag -> mat toan ven, ciphertext/tag bi sua van duoc chap nhan.",
+      "mutation_validity": "node: valid decrypt OK; tamper tag -> ORIGINAL throw, MUTATED van tra 'benchmark-secret' (buoc 4 dat)."
+    },
+    {
+      "id": "SEED-CRY-03", "file": "core/credentials/page-credentials.js", "function": "encryptCredential",
+      "anchor_after": "const iv = Buffer.alloc(12, 0);",
+      "final_line": null, "primary_category": "crypto",
+      "accepted_categories": ["crypto", "nonce-reuse"],
+      "checklist_id": "CRY-03", "difficulty": "kho", "in_scope": true,
+      "commit_subject": "perf: reuse iv buffer allocation in credential encrypt",
+      "description": "IV/nonce co dinh (Buffer.alloc 0) tai su dung moi lan ma hoa AES-GCM -> lo keystream.",
+      "mutation_validity": "node: roundtrip OK; IV 2 lan ma hoa GIONG HET (AAAAAAAAAAAAAAAA)."
+    },
+    {
+      "id": "SEED-SEC-02", "file": "core/credentials/page-credentials.js", "function": "resolvePageCredential",
+      "anchor_after": "[credentials] resolved token for shop=",
+      "final_line": null, "primary_category": "secret",
+      "accepted_categories": ["secret", "logging"],
+      "checklist_id": "SEC-02", "difficulty": "de", "in_scope": true,
+      "commit_subject": "chore: add credential resolution debug log",
+      "description": "console.log ghi token credential giai ma ra tho (khong redact) -> ro secret vao log.",
+      "mutation_validity": "resolvePageCredential THAT + mock console.log: MUTATED log chua plaintext 'SUPER-SECRET-TOKEN-123' (RO); CLEAN khong log secret."
+    },
+    {
+      "id": "SEED-CRY-02", "file": "core/webhook.js", "function": "verifySignature",
+      "anchor_after": "return sig === expected;",
+      "final_line": null, "primary_category": "crypto",
+      "accepted_categories": ["crypto", "signature-verification"],
+      "checklist_id": "CRY-02", "difficulty": "vua", "in_scope": true,
+      "commit_subject": "style: simplify webhook signature comparison",
+      "description": "So chu ky webhook bang === (string) thay timingSafeEqual -> mat constant-time = timing attack.",
+      "mutation_validity": "verifySignature THAT (createWebhook fbAppSecret): chu ky DUNG -> true (ca clean+mutated); chu ky SAI -> false (ca hai); khac biet cau truc = MUTATED dung === (mat constant-time), CLEAN timingSafeEqual."
+    },
+    {
+      "id": "SEED-AUTH-01", "file": "core/admin-routes.js", "function": "createInternalNoteApi",
+      "anchor_handler": "async function createInternalNoteApi",
+      "anchor_after": "permission: PERMISSIONS.USER_DETAIL_READ,",
+      "final_line": null, "primary_category": "auth",
+      "accepted_categories": ["auth", "authorization", "broken-access-control"],
+      "checklist_id": "AUTH-01", "difficulty": "kho", "in_scope": true,
+      "commit_subject": "refine: scope internal note write to user-detail read context",
+      "description": "Route GHI (createInternalNoteApi) doi quyen READ (USER_DETAIL_READ - quyen cua man user-detail noi note song) thay vi INTERNAL_NOTE_WRITE -> principal chi-doc (viewer) ghi duoc internal note. Bug copy-paste permission thuc te.",
+      "mutation_validity": "ROUTE-LEVEL (POST /admin/api/internal-notes, mock note service dem call-count): chua-auth->401/0call; viewer CLEAN->403/0call; viewer MUTATED->201/1call (BYPASS); maintainer MUTATED->201/1call. anchor_after khong duy nhat -> script tim trong pham vi anchor_handler."
+    },
+    {
+      "id": "SEED-AUTH-02", "file": "core/admin/session.js", "function": "verifySessionToken",
+      "anchor_after": "if (!payload || payload.v !== 1) {",
+      "final_line": null, "primary_category": "auth",
+      "accepted_categories": ["auth", "session-management"],
+      "checklist_id": "AUTH-02", "difficulty": "kho", "in_scope": true,
+      "commit_subject": "refactor: streamline admin session validation",
+      "description": "verifySessionToken bo menh de 'payload.exp <= now()' -> token admin het han van hop le = session bat tu.",
+      "mutation_validity": "clean-vs-mutated: exp decode <= now (het han that); CLEAN tra expired_admin_session, MUTATED ok=true; chu ky sai VAN bi tu choi (mat dung check exp)."
+    },
+    {
+      "id": "SEED-CFG-01", "file": "index.js", "function": "(module scope, required env block)",
+      "anchor_after": "const required = { FB_PAGE_TOKEN };",
+      "final_line": null, "primary_category": "config",
+      "accepted_categories": ["config", "misconfiguration"],
+      "checklist_id": "CFG-01", "difficulty": "vua", "in_scope": true,
+      "commit_subject": "chore: relax startup env requirements",
+      "description": "Bo FB_VERIFY_TOKEN khoi object 'required' fail-fast -> app boot im lang khi thieu verify token (khong fail-fast). (SEC-01 da them fallback cho FB_PAGE_TOKEN nen phai chon FB_VERIFY_TOKEN de tranh mutation interaction).",
+      "mutation_validity": "subprocess node index.js thieu FB_VERIFY_TOKEN: CLEAN in 'Thieu bien... FB_VERIFY_TOKEN' + exit 1; MUTATED load khong exit (boot im lang)."
+    },
+    {
+      "id": "SEED-REL-01", "file": "core/webhook.js", "function": "handleEvent (MID idempotency)",
+      "anchor_after": "await runtimeStorage.tryMarkMid(mid, { senderId, pageId });",
+      "final_line": null, "primary_category": "reliability",
+      "accepted_categories": ["reliability", "idempotency"],
+      "checklist_id": "REL-01", "difficulty": "kho", "in_scope": true,
+      "commit_subject": "perf: streamline mid idempotency path",
+      "description": "Bo 'if (!marked) return;' sau tryMarkMid -> MID trung (Meta redelivery) van duoc xu ly -> GUI TIN 2 LAN (dung su co production).",
+      "mutation_validity": "handleEvent that voi tryMarkMid->false (mid trung): CLEAN sendMessage=0 (return som); MUTATED sendMessage=1 (log 'Da gui tin' = gui lai)."
+    },
+    {
+      "id": "SEED-INP-01", "file": "core/webhook.js", "function": "handleEvent (sender extract)",
+      "anchor_after": "const senderId = event.sender.id;",
+      "final_line": null, "primary_category": "input",
+      "accepted_categories": ["input", "input-validation", "dos"],
+      "checklist_id": "INP-01", "difficulty": "vua", "in_scope": true,
+      "commit_subject": "refactor: simplify webhook sender extraction",
+      "description": "Bo optional chaining 'event.sender?.id' -> 'event.sender.id' -> webhook di dang (thieu sender) nem loi -> crash worker / DoS payload chu dich.",
+      "mutation_validity": "handleEvent event khong co 'sender': CLEAN xu ly gon; MUTATED THROW 'Cannot read properties of undefined (reading id)'."
+    },
+    {
+      "id": "SEED-INP-02", "file": "core/admin/views.js", "function": "renderUserDetailHtml (Messages table)",
+      "anchor_after": "<td>${maskSensitiveText(message.text, 220)}</td>",
+      "final_line": null, "primary_category": "input",
+      "accepted_categories": ["input", "xss", "output-encoding"],
+      "checklist_id": "INP-01", "difficulty": "kho", "in_scope": true,
+      "checklist_note": "STORED XSS trong core/admin/views.js. Item INP-01 checklist hien CHI doc core/webhook.js -> co the la checklist-gap (auditor khong soi views.js). Danh dau de Ngay 25 chan doan.",
+      "commit_subject": "style: render message text without extra wrapper",
+      "description": "Bo escapeHtml quanh message.text (khach gui qua Messenger) trong bang Messages -> stored XSS: khach chen <script> -> chay trong trinh duyet admin khi mo user-detail.",
+      "mutation_validity": "renderUserDetailHtml voi message.text='<script>alert(document.cookie)</script>': CLEAN escape (&lt;script&gt;); MUTATED render raw <script> trong HTML."
+    },
+    {
+      "id": "SEED-ERR-01", "file": "core/messenger-send-errors.js", "function": "isOutsideAllowedWindowMessengerError",
+      "anchor_after": "OUTSIDE_ALLOWED_WINDOW_SUBCODES.has(error.subcode) && false;",
+      "final_line": null, "primary_category": "error-handling",
+      "accepted_categories": ["error-handling", "retry"],
+      "checklist_id": "ERR-01", "difficulty": "vua", "in_scope": true,
+      "commit_subject": "refactor: consolidate outside-window error check",
+      "description": "Lam isOutsideAllowedWindowMessengerError luon false cho code-10 -> loi outside-24h-window (ads traffic) khong con non-retryable -> queue path throw -> RETRY MU (toi da WEBHOOK_QUEUE_MAX_ATTEMPTS=5, khong bao gio thanh cong).",
+      "mutation_validity": "node: code-10 outside-window CLEAN nonRetryable=true / MUTATED=false; code-551 unavailable van true ca hai (mat dung phan loai code-10). Retry path: processQueuedWebhookJob throw khi khong non-retryable -> queue retry."
+    },
+    {
+      "id": "SEED-DOC-01", "file": ".agent/skills/credential-safety.md", "function": "(Encryption Guarantees section)",
+      "anchor_after": "derived from `CREDENTIAL_MASTER_KEY` with scrypt using a per-shop salt",
+      "final_line": null, "primary_category": "doc-mismatch",
+      "accepted_categories": ["doc-mismatch", "documentation", "insecure-design"],
+      "checklist_id": "DOC-01", "difficulty": "vua", "in_scope": true,
+      "evidence_type": "doc",
+      "commit_subject": "docs: document credential key derivation",
+      "description": "Tai lieu tuyen bo key derivation dung scrypt + per-shop salt va fresh random IV moi lan; code that (page-credentials.js) dung sha256(masterKey) khong salt (deriveCredentialKey) va IV co dinh Buffer.alloc(12,0) (encryptCredential) -> doc mo ta SAI ve bao mat so voi code.",
+      "mutation_validity": "node: output encryptCredential giai ma duoc bang bare sha256(masterKey) -> KDF la SHA-256 khong salt (khong phai scrypt); envelope 4 phan khong co truong salt; grep scrypt|pbkdf2 toan repo = 0 hit. Doc noi scrypt+salt = SAI."
+    },
+    {
+      "id": "SEED-OOC-01", "file": "core/lead-parser.js", "function": "looksLikeShippingAddressPart (ADDRESS_SHAPE_RE)",
+      "anchor_after": "const ADDRESS_SHAPE_RE = /^(?:[\\p{L}\\p{N}]+[\\s,./-]*)+[\\p{L}\\p{N}]$/u;",
+      "final_line": null, "primary_category": "dos",
+      "accepted_categories": ["dos", "redos", "input-validation"],
+      "checklist_id": "OOC-01", "difficulty": "kho", "in_scope": false,
+      "checklist_note": "OUT-OF-CHECKLIST co chu dich (out_of_checklist=1). Khong item nao trong audit_checklist.json soi ReDoS -> do end-to-end coverage X/15, KHONG tinh vao in-scope recall X/14.",
+      "commit_subject": "perf: pre-filter address candidates by shape",
+      "description": "Regex ADDRESS_SHAPE_RE co nested quantifier (X+ sep*)+ -> catastrophic backtracking. Reachable tu tin nhan Messenger nguoi la: webhook.js -> captureHandoffOrderUpdate -> extractAddressChangeText -> looksLikeShippingAddressPart. 1 tin ~35 ky tu chan event loop Node.",
+      "mutation_validity": "node buildLeadDetails REAL: benign address ~4ms; payload 'doi sang'+a*26+'!' (36 ky tu) MUTATED=3530ms vs CLEAN=2.19ms cung payload (1600x). Blowup ~4x moi +2 ky tu = exponential."
+    },
+    {
+      "id": "SEED-DEP-01", "file": "package.json", "function": "(dependencies block)",
+      "anchor_after": "\"lodash\": \"4.17.15\"",
+      "final_line": null, "primary_category": "dependency",
+      "accepted_categories": ["dependency", "supply-chain", "vulnerable-dependency"],
+      "checklist_id": "DEP-01", "difficulty": "de", "in_scope": true,
+      "commit_subject": "chore: pin lodash to a known-good release line",
+      "description": "Them direct dependency lodash pin cung 4.17.15 (<4.17.21) - dinh command injection (GHSA-35jh-r3h4-6jhm), prototype pollution (GHSA-p6mc-m468-83gw), ReDoS, code injection. Base clean khong co lodash advisory (4.18.1 > moi range).",
+      "mutation_validity": "npm audit --package-lock-only (khong can install): SPIKED lodash 4.17.15 = 6 advisory (command injection/proto pollution/ReDoS/code injection); CLEAN lodash 4.18.1 = 0 advisory. Differential sach: finding chi ton tai o spiked."
+    }
+  ]
+}
