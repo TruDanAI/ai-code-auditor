@@ -36,6 +36,11 @@ PRICES = {
     "gemini-2.5-pro": {"input": 1.25, "output": 10.00},
 }
 PRICE = PRICES[MODEL]
+
+# X6 ablation: cong tat dinh co TAT duoc bang env de DO dong gop cua no vao
+# precision. Cung ky luat X5: bien duy nhat doi giua 2 arm nam o ENV, nen logic
+# va hash agent.py giu nguyen xi ca hai arm. Mac dinh = BAT (khong doi hanh vi cu).
+NO_VALIDATOR = os.environ.get("AUDITOR_NO_VALIDATOR") == "1"
 LOG_FILE = "agent_log.jsonl"      # so chi phi - 1 dong JSON / 1 cu goi LLM
 MAX_STEPS = 10                    # nang 6->10 (do that Ngay 16: guardrail an ~1 step tu choi
                                   # + 2-3 step dieu tra bu -> 6 la chet non giua chung)
@@ -344,6 +349,11 @@ def validate_report(args: dict, tools_called: set) -> str:
     Chi kiem duoc HINH THUC (file/line/evidence co that khong) - benh NGU NGHIA
     (finding rac, khai man not_checked) tri bang schema description + benchmark.
     """
+    # X6 arm B: bo gac cua hoan toan. KHONG dung o san xuat - chi de do xem
+    # precision tut bao nhieu khi thieu no. Tra "" = pass moi thu.
+    if NO_VALIDATOR:
+        return ""
+
     # Buoc 0 - guardrail Ngay 16 DOI CHO ve day: bao cao phai dua tren code DA DOC.
     # Loi tu choi gio quay ve qua function_response (doi CONG, khong doi check).
     if "read_file" not in tools_called:

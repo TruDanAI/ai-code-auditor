@@ -198,6 +198,7 @@ def main() -> int:
         "runner_version": RUNNER_VERSION,
         "model": agent.MODEL,
         "max_steps": agent.MAX_STEPS,
+        "validator_enabled": not agent.NO_VALIDATOR,   # X6: arm ghi thang vao manifest
         "agent_sha256": sha256_file(PROJECT_ROOT / "agent.py"),
         "audit_sha256": sha256_file(PROJECT_ROOT / "audit.py"),
         "generation_defaults": "defined by agent.py/provider; code hash is authoritative",
