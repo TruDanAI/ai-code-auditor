@@ -21,10 +21,21 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 
-MODEL = "gemini-2.5-flash-lite"   # loop goi LLM nhieu lan -> model re (REV 2/7)
+# X5 Arm C: model la BIEN DUY NHAT doi giua cac arm -> doc tu env, nen LOGIC va
+# HASH cua agent.py giu nguyen xi qua moi arm. Arm chi khac o config duoc ghi vao
+# run_manifest.json (field "model").
+MODEL = os.environ.get("AUDITOR_MODEL", "gemini-2.5-flash-lite")
 
-# Bang gia USD / 1 TRIEU token (gemini-2.5-flash-lite). Neo: 1M token input = 10 xu.
-PRICE = {"input": 0.10, "output": 0.40}
+# Bang gia USD / 1 TRIEU token. Neo: 1M token input flash-lite = 10 xu.
+# Doi MODEL ma quen doi gia = bao cao so TIEN SAI -> tra cuu bang, khong hardcode.
+# Model la khong co trong bang -> KeyError NGAY luc khoi dong (fail fast), khong
+# de chay xong roi moi phat hien so tien la bia.
+PRICES = {
+    "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
+    "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.00},
+}
+PRICE = PRICES[MODEL]
 LOG_FILE = "agent_log.jsonl"      # so chi phi - 1 dong JSON / 1 cu goi LLM
 MAX_STEPS = 10                    # nang 6->10 (do that Ngay 16: guardrail an ~1 step tu choi
                                   # + 2-3 step dieu tra bu -> 6 la chet non giua chung)
