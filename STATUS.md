@@ -1,7 +1,7 @@
 # STATUS — AI Code Auditor
 
 **Cập nhật:** 17/08/2026  
-**Milestone:** X4 — Commercial-agent arm ĐÃ CHẠY (Claude Code vs cùng benchmark)  
+**Milestone:** X5 — Model ladder ĐÃ CHẠY. Harness tự viết đạt ngang agent thương mại.  
 **Chế độ mặc định hiện tại:** MENTOR MODE cho mutation có bài học; BUILD MODE cho
 scorer/runner/test cơ học sau khi contract đã được giải thích.
 
@@ -31,6 +31,34 @@ scorer/runner/test cơ học sau khi contract đã được giải thích.
   noise nền, bị loại. AUTH-02 (đúng line 169) cũng bị flag ở clean (2/3) → tính
   MISS đúng, không ăn điểm may. Đây là bằng chứng mạnh nhất vì sao cần clean-vs-spiked.
 - Offline tests vẫn xanh: 9/9 benchmark unit tests, citation validator 6/6.
+
+## X5 — Model ladder, harness bất biến (20/08/2026)
+
+Chi tiết: `benchmark/results-x5-model-ladder.md`. Protocol `4f74da5` commit 11:56:10,
+**trước trial đầu tiên** — git chứng minh được thứ tự (sửa lỗi quy trình của X4).
+
+| Metric | lite | flash | pro | Claude X4 |
+|---|---|---|---|---|
+| recall | 26.2% | 45.2% | **54.8%** | 57.1% |
+| precision | 24.6% | **61.1%** | 53.8% | 52.4% |
+| FDR | 75.4% | **38.9%** | 46.2% | 47.6% |
+| $/audit | $0.08 | $0.26 | $1.59 | $6.43 |
+
+- **H3 kích hoạt** (recall(pro) ≥ 50%): khoảng cách X4 **chủ yếu do MODEL**. Harness
+  3-tool + validator **không phải nút thắt**. Dự đoán đăng ký trước của tác giả đúng.
+- `agent.py`+pro cách Claude Code **2,3 điểm** ở chi phí **thấp hơn 4×**.
+- `agent.py`+pro bắt được **SEED-REL-01** mà Claude Code trượt cả 3 trial (union 9/14 vs 8/14).
+- **Precision đạt đỉnh ở `flash` rồi TỤT ở `pro`** (61.1 → 53.8). Model mạnh hơn tìm
+  nhiều hơn nhưng ồn hơn. `flash` là điểm ngọt hiệu quả: F1 51.4% ở $0.26.
+- 5 seed không arm nào bắt: AUTH-01, CRY-01, INP-02 (lỗ hổng checklist), **CFG-01 và
+  DOC-01 là `vua`** — chúng kháng vì đòi phát hiện **SỰ VẮNG MẶT**, một nhánh riêng
+  trong failure taxonomy, không phải vì độ khó suy luận.
+
+**Phân rã giả định:** model → recall; harness → precision. Vế sau CHƯA đo được —
+cần ablation tắt `validate_report`. Đây là thí nghiệm rẻ nhất còn lại.
+
+**Thay đổi code:** `agent.py` `MODEL`/`PRICE` đọc từ env `AUDITOR_MODEL`; hash code
+giống hệt qua mọi arm; model lạ → `KeyError` lúc import (fail fast trên báo cáo tiền).
 
 ## X4 — Claude Code trên cùng benchmark (17/08/2026)
 
