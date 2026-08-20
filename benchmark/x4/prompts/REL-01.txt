@@ -1,0 +1,4 @@
+[MUC AUDIT REL-01 | category='reliability' | severity goi y: high]
+Facebook gui LAI webhook event khi khong nhan HTTP 200 kip thoi - he thong co dedup/idempotency de tranh XU LY VA GUI TIN NHAN 2 LAN khong? Grep 'recentMessage|dedup|mid|message_id' ext='.js', read_file co che dedup trong core/webhook.js: no dua tren khoa gi, TTL bao lau, co phu MOI duong gui tin (message, menu, media...) hay chi mot loai? Duong gui nao khong qua dedup = finding. (Nguon: su co production that - tin nhan gui lap 2 lan cho khach.)
+BAT BUOC: moi finding cua muc nay dien category='reliability'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

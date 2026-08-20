@@ -1,0 +1,51 @@
+{
+  "clean/trial-01": {
+    "findings": 14,
+    "cost_usd": 6.8576,
+    "turns": 163,
+    "failed_items": []
+  },
+  "spiked/trial-01": {
+    "findings": 20,
+    "cost_usd": 5.855,
+    "turns": 132,
+    "failed_items": [
+      "AUTH-01:error_max_budget_usd"
+    ]
+  },
+  "clean/trial-02": {
+    "findings": 6,
+    "cost_usd": 7.4928,
+    "turns": 178,
+    "failed_items": [
+      "SEC-02:error_max_budget_usd",
+      "AUTH-01:error_max_budget_usd",
+      "DOC-01:error_max_budget_usd",
+      "INP-01:error_max_budget_usd",
+      "CFG-01:error_max_budget_usd"
+    ]
+  },
+  "spiked/trial-02": {
+    "findings": 20,
+    "cost_usd": 5.9377,
+    "turns": 145,
+    "failed_items": [
+      "AUTH-01:error_max_budget_usd"
+    ]
+  },
+  "clean/trial-03": {
+    "findings": 12,
+    "cost_usd": 6.858,
+    "turns": 164,
+    "failed_items": [
+      "SEC-02:error_max_budget_usd",
+      "DOC-01:error_max_budget_usd"
+    ]
+  },
+  "spiked/trial-03": {
+    "findings": 20,
+    "cost_usd": 5.5837,
+    "turns": 149,
+    "failed_items": []
+  }
+}

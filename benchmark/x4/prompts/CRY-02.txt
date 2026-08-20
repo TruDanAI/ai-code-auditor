@@ -1,0 +1,4 @@
+[MUC AUDIT CRY-02 | category='crypto' | severity goi y: high]
+Cho nao so sanh chu ky/token/secret bang == hoac === thay vi crypto.timingSafeEqual? Grep 'signature|x-hub-signature|safeEqual|timingSafeEqual' ext='.js', read_file cac ham verify tim duoc, soi tung phep so sanh chuoi nhay cam. So sanh not-timing-safe = finding (timing attack).
+BAT BUOC: moi finding cua muc nay dien category='crypto'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

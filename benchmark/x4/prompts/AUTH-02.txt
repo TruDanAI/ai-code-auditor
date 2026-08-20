@@ -1,0 +1,4 @@
+[MUC AUDIT AUTH-02 | category='auth' | severity goi y: high]
+Session/token admin duoc tao va xac thuc the nao? read_file core/admin/session.js: token co ky (HMAC) khong, co thoi han (expiry) khong, verify co check het han khong? Token khong ky hoac khong bao gio het han = finding.
+BAT BUOC: moi finding cua muc nay dien category='auth'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

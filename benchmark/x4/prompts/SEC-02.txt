@@ -1,0 +1,4 @@
+[MUC AUDIT SEC-02 | category='secret' | severity goi y: high]
+Credential hoac PII (token, so dien thoai khach, noi dung tin nhan khach) co bi ghi ra log khong? Grep 'console.log' va 'logger' trong cac file xu ly credential (core/credentials/, core/admin/session.js) va webhook, doc ky xem tham so log co chua token/PII tho khong. He thong co redact truoc khi log khong (goi y: grep 'redact').
+BAT BUOC: moi finding cua muc nay dien category='secret'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

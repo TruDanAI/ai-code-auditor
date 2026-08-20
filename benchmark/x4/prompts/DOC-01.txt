@@ -1,0 +1,4 @@
+[MUC AUDIT DOC-01 | category='doc-mismatch' | severity goi y: medium]
+Tai lieu co mo ta SAI ve bao mat so voi code that khong? Grep trong file .md cac tuyen bo ve crypto/auth ('AES|HMAC|encrypt|quyen|role'), chon 2-3 tuyen bo cu the va kiem chung tung cai bang code .js that. Tai lieu noi A code lam B = finding doc-mismatch (evidence_type='doc', kem citation ca 2 phia trong explanation).
+BAT BUOC: moi finding cua muc nay dien category='doc-mismatch'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

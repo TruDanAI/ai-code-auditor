@@ -1,7 +1,7 @@
 # STATUS — AI Code Auditor
 
-**Cập nhật:** 14/08/2026  
-**Milestone:** Phase 1 — Baseline benchmark run ĐÃ CHẠY (X1 signal test hoàn tất)  
+**Cập nhật:** 17/08/2026  
+**Milestone:** X4 — Commercial-agent arm ĐÃ CHẠY (Claude Code vs cùng benchmark)  
 **Chế độ mặc định hiện tại:** MENTOR MODE cho mutation có bài học; BUILD MODE cho
 scorer/runner/test cơ học sau khi contract đã được giải thích.
 
@@ -31,6 +31,40 @@ scorer/runner/test cơ học sau khi contract đã được giải thích.
   noise nền, bị loại. AUTH-02 (đúng line 169) cũng bị flag ở clean (2/3) → tính
   MISS đúng, không ăn điểm may. Đây là bằng chứng mạnh nhất vì sao cần clean-vs-spiked.
 - Offline tests vẫn xanh: 9/9 benchmark unit tests, citation validator 6/6.
+
+## X4 — Claude Code trên cùng benchmark (17/08/2026)
+
+Chi tiết: `benchmark/results-x4-commercial-v01.md`. Protocol: `benchmark/protocol-x4-commercial-baseline.md`.
+
+- 3 clean + 3 spiked trial, `claude-sonnet-5` qua `claude -p` headless, cwd = bản sao
+  snapshot ở thư mục trung lập (không CLAUDE.md cha, không `.git`, không gold).
+- Scorer + gold **KHÔNG sửa** (`git status` sạch trước khi chấm).
+- **Recall 57.1% (8/14), precision 52.4%, FDR 47.6%, F1 54.6%** — giống hệt ở cả 3 trial.
+- Gradient: `de` **100%** → `vua` **60%** → `kho` **33%**. Agent repo: 67 → 20 → 11.
+- Chi phí $6.43/lượt audit vs $0.08 của agent repo = **80×**. Recall/đô: agent repo thắng 37×.
+- SEED-AUTH-02: agent repo MISS (flag cả trên clean), Claude HIT (không có trong clean
+  consensus). Cùng seed, cùng luật chấm, hai phán quyết ngược — bằng chứng mạnh nhất
+  cho việc differential đáng tồn tại.
+- 9/78 lượt Claude bị cắt bởi trần `--max-budget-usd 0.80`; 16 lượt dính HTTP 429 đã bị
+  **xoá và chạy lại**, không đưa vào chấm (429 = hạ tầng từ chối, không phải phép đo).
+
+### Integrity note cho X4
+
+Protocol X4 được soạn TRƯỚC trial đầu tiên nhưng **commit SAU**. Git không chứng minh
+được thứ tự. Mô tả trung thực: "authored before the first trial; committed after."
+KHÔNG gọi là full pre-registration.
+
+### Giới hạn quan trọng của X4
+
+Claude bị bó còn 3 tool đọc (`Read`/`Grep`/`Glob`) + trần $0.80/mục, không Bash,
+không subagent, không skills, phiên mới mỗi mục. **57.1% là SÀN, không phải trần.**
+Kết quả `kho` có thể là hiện vật của ràng buộc chứ chưa chắc là thuộc tính của lớp lỗi.
+
+### Nhánh tiếp theo (chưa chạy, phải đăng ký trước)
+
+- **Arm C** — `agent.py` giữ nguyên, chỉ đổi `MODEL` sang model mạnh. Tách biến model
+  khỏi biến harness. Ưu tiên làm trước: rẻ, và nó đánh giá CÔNG TRÌNH CỦA MÌNH.
+- **Arm D** — Claude Code thả hết xích (full tool, không trần, opus). Đo trần thật.
 
 ## Quyết định X1 (theo P-X1 acceptance #7)
 

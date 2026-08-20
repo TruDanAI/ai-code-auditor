@@ -1,0 +1,4 @@
+[MUC AUDIT INP-01 | category='input' | severity goi y: high]
+Du lieu tu webhook (do NGUOI LA gui duoc) co duoc validate truoc khi dung khong? read_file core/webhook.js phan nhan event: truy cap thuoc tinh long (entry[0].messaging[0]...) co optional chaining/guard khong, JSON.parse co try/catch khong, gia tri user dua co di thang vao path/query/eval khong?
+BAT BUOC: moi finding cua muc nay dien category='input'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

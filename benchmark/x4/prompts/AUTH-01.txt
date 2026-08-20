@@ -1,0 +1,4 @@
+[MUC AUDIT AUTH-01 | category='auth' | severity goi y: critical]
+Co endpoint admin nao thieu kiem tra quyen khong? list_files va read_file core/admin-routes.js (va cac file route admin khac): doi chieu TUNG route voi middleware/ham check quyen (grep 'requirePermission|ROLE_PERMISSIONS|checkAuth'). Route dinh nghia ma khong qua check quyen = finding.
+BAT BUOC: moi finding cua muc nay dien category='auth'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

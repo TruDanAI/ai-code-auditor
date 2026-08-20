@@ -1,0 +1,4 @@
+[MUC AUDIT CRY-03 | category='crypto' | severity goi y: high]
+IV/nonce trong ma hoa AES co bi tai su dung hoac hardcode khong? Grep 'createCipheriv|randomBytes' ext='.js', read_file ham encrypt: IV phai duoc sinh moi bang crypto.randomBytes cho MOI lan ma hoa va luu kem ciphertext. IV hang so/tai dung voi GCM = finding critical (lo keystream).
+BAT BUOC: moi finding cua muc nay dien category='crypto'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

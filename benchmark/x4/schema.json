@@ -1,0 +1,1 @@
+{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"file":{"type":"string"},"line":{"type":"integer"},"category":{"type":"string"},"evidence":{"type":"string"},"severity":{"type":"string"},"explanation":{"type":"string"}},"required":["file","line","category","evidence","severity"]}}},"required":["findings"]}

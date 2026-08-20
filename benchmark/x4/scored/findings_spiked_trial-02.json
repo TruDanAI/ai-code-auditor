@@ -1,0 +1,182 @@
+[
+  {
+    "file": "index.js",
+    "line": 268,
+    "category": "secret",
+    "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+    "severity": "critical",
+    "explanation": "Hardcoded literal fallback for a Facebook Page Access Token (starts with 'EAAG', matches the real FB token format/length). If FB_PAGE_TOKEN is unset, the app silently sends messages using this embedded credential instead of failing — and the token is committed in plaintext to the repo, so anyone with read access to the source can use it to act as the Page. Should be removed entirely (fail closed when env var is missing), not defaulted to a literal value.",
+    "_item": "SEC-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 105,
+    "category": "secret",
+    "evidence": "console.log(`[credentials] resolved token for shop=${normalizedShopId}: ${secret}`);",
+    "severity": "high",
+    "explanation": "resolvePageCredential() decrypts the stored page credential (secret, e.g. Messenger page access token) and logs its raw plaintext value to console.log on every successful resolution. Anyone with log access (Railway logs, log aggregator, etc.) can read live page access tokens. Contrast with core/webhook.js and core/admin/session.js, which consistently hash identifiers via pageRef()/shopRef() (core/utils/log-refs.js) and never log raw secrets/tokens — this line is the one place a raw secret reaches the log stream. No redact call wraps `secret` here. Fix: drop `secret` from the log line entirely (log only shop/credential id, e.g. via shopRef(normalizedShopId)).",
+    "_item": "SEC-02"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 32,
+    "category": "crypto",
+    "evidence": "const iv = Buffer.alloc(12, 0);",
+    "severity": "critical",
+    "explanation": "encryptCredential() always uses a hard-coded, all-zero 12-byte IV with AES-256-GCM instead of a random nonce. deriveCredentialKey() (line 25) derives the AES key from a single global CREDENTIAL_MASTER_KEY env var shared by every credential, so every call to encryptCredential() in the process reuses the exact same (key, IV) pair. Reusing a nonce under GCM is catastrophic: it leaks the XOR of any two plaintexts encrypted under the same key/IV and, worse, lets an attacker who sees two such ciphertexts recover the GHASH authentication subkey H and forge valid auth tags for arbitrary ciphertext — fully breaking both confidentiality and integrity of every row in shop_page_credentials.encrypted_value. The fix is to generate a fresh crypto.randomBytes(12) IV per call; the code already threads the IV through the stored envelope (base64UrlEncode(iv) at line 39, base64UrlDecode(ivPart) at decrypt time), so only the IV generation itself needs to change.",
+    "_item": "CRY-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 275,
+    "category": "crypto",
+    "evidence": "return sig === expected;",
+    "severity": "high",
+    "explanation": "Hàm verifySignature() dùng để xác thực HMAC-SHA256 (X-Hub-Signature-256) của webhook Facebook, nhưng so sánh chữ ký bằng toán tử === thay vì crypto.timingSafeEqual. So sánh chuỗi bằng === dừng sớm ngay khi gặp ký tự sai đầu tiên, tạo ra chênh lệch thời gian đo được tùy theo số ký tự đúng ở đầu chuỗi. Kẻ tấn công có thể dùng timing attack để dò từng byte của HMAC hợp lệ, từ đó giả mạo webhook Facebook (gửi tin nhắn/sự kiện giả) mà không cần biết fbAppSecret.",
+    "_item": "CRY-02"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 523,
+    "category": "crypto",
+    "evidence": "if (mode === 'subscribe' && token === fbVerifyToken) {",
+    "severity": "medium",
+    "explanation": "Endpoint GET /webhook so sánh hub.verify_token của client với fbVerifyToken bằng === thay vì hàm so sánh an toàn về thời gian (như safeEqualSecret/timingSafeEqual đã dùng ở admin-auth.js). Đây vẫn là so sánh token bí mật không timing-safe nên về lý thuyết có thể bị dò qua timing attack, dù mức độ khai thác thấp hơn do endpoint này chỉ dùng một lần khi cấu hình webhook trên Facebook Developer Console.",
+    "_item": "CRY-02"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 32,
+    "category": "crypto",
+    "evidence": "const iv = Buffer.alloc(12, 0);",
+    "severity": "critical",
+    "explanation": "encryptCredential() dung IV/nonce co dinh (12 byte toan so 0) cho MOI lan goi, thay vi sinh moi bang crypto.randomBytes(12). Voi AES-256-GCM, tai su dung cung (key, IV) lam lo keystream: hai ban ma cung key/IV cho phep XOR de suy ra XOR cua hai plaintext, va con cho phep gia mao (forge) authentication tag qua ky thuat GCM nonce-reuse (khoi phuc auth subkey H). Vi deriveCredentialKey() la ham xac dinh (sha256 cua masterKey) nen tat ca credential ma hoa voi cung masterKey deu dung chung 1 (key, IV) co dinh -> vi pham nghiem trong an toan GCM. Fix: `const iv = crypto.randomBytes(12);` va luu iv kem ciphertext (co san co che base64UrlEncode(iv) trong envelope, chi can sinh IV ngau nhien truoc khi tao cipher).",
+    "_item": "CRY-03"
+  },
+  {
+    "file": "core/admin/session.js",
+    "line": 169,
+    "category": "auth",
+    "evidence": "if (!payload || payload.v !== 1) {",
+    "severity": "high",
+    "explanation": "Token duoc ky bang HMAC-SHA256 (createSessionToken/signValue, dong 121-147) va verifySessionToken() co kiem tra chu ky dung timingSafeEqual (dong 159) - phan nay an toan. Nhung payload chua truong 'exp' (dong 142: exp = issuedAt + maxAgeMs) lai KHONG BAO GIO duoc doi chieu voi thoi gian hien tai trong verifySessionToken(): sau khi giai ma payload, ham chi kiem tra 'payload.v !== 1' (dong 169) roi tra ve ok:true (dong 173-180), khong co buoc nao so sanh payload.exp voi now(). Grep toan repo xac nhan payload.exp chi duoc GHI (dong 142), khong noi nao doc lai. Ket qua: session token khong bao gio het han o phia server - Max-Age tren cookie chi la gioi han phia trinh duyet, con token bi lo (XSS, log, sniffing, hoac giu lai sau khi 'logout' vi logout chi xoa cookie chu khong thu hoi token - submitLogout dong 420-436) van duoc server chap nhan vo thoi han.",
+    "_item": "AUTH-02"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 25,
+    "category": "doc-mismatch",
+    "evidence": "return crypto.createHash('sha256').update(value, 'utf8').digest();",
+    "severity": "medium",
+    "explanation": ".agent/skills/credential-safety.md:23 states: \"The 32-byte content key is derived from `CREDENTIAL_MASTER_KEY` with scrypt using a per-shop salt; the master key is never used as key material directly.\" The real implementation, deriveCredentialKey() at core/credentials/page-credentials.js:22-26, does a plain unsalted SHA-256 hash of the raw master key — no scrypt, no per-shop salt, no shopId input at all, so every shop derives the exact same key from the same master key. The doc describes a KDF that does not exist in the code.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 32,
+    "category": "doc-mismatch",
+    "evidence": "const iv = Buffer.alloc(12, 0);",
+    "severity": "high",
+    "explanation": ".agent/skills/credential-safety.md:24 states: \"Every encryption draws a fresh random 96-bit IV, so encrypting the same token twice never yields the same envelope.\" The real code at core/credentials/page-credentials.js:32 hardcodes iv to a fixed all-zero 12-byte buffer on every call — never random. Combined with the deterministic key derivation at line 25, encrypting the same token twice with the same master key produces an IDENTICAL ciphertext envelope, the exact opposite of what the doc guarantees, and is also a genuine AES-GCM nonce-reuse weakness in its own right.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 105,
+    "category": "doc-mismatch",
+    "evidence": "console.log(`[credentials] resolved token for shop=${normalizedShopId}: ${secret}`);",
+    "severity": "high",
+    "explanation": ".agent/skills/credential-safety.md:8 sets the hard rule \"Never print, log, return, snapshot, or test against a real token\" (reinforced by docs/runbooks/production-page-cutover-runbook.md:150-152: \"never persisted or logged. Only `encrypted_value` is stored, and it is never printed.\"). The real resolvePageCredential() function at core/credentials/page-credentials.js:104-105 decrypts the stored credential and immediately console.logs the plaintext token on every single resolution, directly violating the documented hard rule in the same credential layer the docs describe.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "package.json",
+    "line": 23,
+    "category": "dependency",
+    "evidence": "\"lodash\": \"4.17.15\",",
+    "severity": "medium",
+    "explanation": "lodash pinned (no ^) at 4.17.15, an old version with known CVEs fixed in later 4.17.x releases: CVE-2020-8203 (prototype pollution), CVE-2021-23337 (command injection via template), CVE-2020-28500 (ReDoS in trim/trimEnd) — all resolved by 4.17.19/4.17.21. Bump to ^4.17.21.",
+    "_item": "DEP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 266,
+    "category": "input",
+    "evidence": "if (!fbAppSecret) return true;",
+    "severity": "high",
+    "explanation": "Neu fbAppSecret khong duoc cau hinh (undefined/rong), verifySignature() luon tra ve true, bo qua hoan toan kiem tra chu ky HMAC X-Hub-Signature-256. Day la lop xac thuc DUY NHAT dam bao request thuc su den tu Meta; neu bien moi truong nay bi thieu/sai o production (hoac bi xoa nham), bat ky nguoi la nao cung co the POST du lieu gia mao toi /webhook va duoc xu ly nhu du lieu that tu Meta.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 546,
+    "category": "input",
+    "evidence": "for (const entry of body.entry || []) {",
+    "severity": "high",
+    "explanation": "`body.entry || []` chi chan gia tri null/undefined, khong kiem tra body.entry (va entry.messaging o dong 547) co thuc su la Array hay khong. Neu ai do gui payload dang {\"object\":\"page\",\"entry\":{}} hoac entry chua phan tu null, vong for...of se nem TypeError 'is not iterable' ngay trong route handler async — truoc ca khi res.sendStatus(200) duoc goi va khong nam trong try/catch nao trong ham nay, dan den unhandled rejection / request bi treo (rui ro DoS tu input khong hop le).",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 646,
+    "category": "input",
+    "evidence": "const senderId = event.sender.id;",
+    "severity": "medium",
+    "explanation": "Khac voi phan con lai cua file luon dung optional chaining khi doc du lieu Messenger long nhau (event?.sender?.id o dong 286, event?.message?.text, event?.postback?.payload...), dong nay truy cap event.sender.id truc tiep khong co guard. Neu mot event khong co truong sender (vi du event loai standby/feedback hoac payload bi loi format), no se nem TypeError. Loi nay duoc try/catch o tang goi (processWebhookRequestEvents/processQueuedWebhookJob) bat lai nen khong sap ca server, nhung khien message do bi bo qua am tham va chi log loi chung chung.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 293,
+    "category": "input",
+    "evidence": "return `${forwardedProto}://${forwardedHost}`;",
+    "severity": "medium",
+    "explanation": "inferBaseUrlFromRequest lay truc tiep header HTTP x-forwarded-proto / x-forwarded-host (do client gui, dong 290-291) lam baseUrl, sau do baseUrl nay duoc dung de dung link anh/carousel gui thuc te cho khach (getMenuImageUrls, buildRequestedImageUrls, sendHotCarousel o cac dong 971-978). Khong co buoc allowlist/so sanh voi domain that cua he thong. Neu server khong nam sau mot reverse proxy tin cay loc bo header nay, nguoi goi request co the gia mao x-forwarded-host de bot gui link tro ve domain khac cho khach that.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 649,
+    "category": "reliability",
+    "evidence": "const mid = event.message?.mid;",
+    "severity": "high",
+    "explanation": "Co che idempotency chinh (runtimeStorage.tryMarkMid, khoa = mid duoc scope theo tenant+page, KHONG co TTL - ben vung qua UNIQUE constraint 'processed_mids' trong postgres-adapter.js, hoac qua Set gioi han 5000 phan tu trong file-adapter.js) chi kich hoat khi 'mid' ton tai. Nhung 'mid' chi co tren event.message (tin nhan text/quick_reply/attachment). Cac event khac nhu event.postback (nut bam, persistent menu) va event referral-only (mo link m.me/ads referral, khong kem message) KHONG co truong mid nen block dedup o dong 657-669 bi bo qua hoan toan doi voi cac duong gui nay - khi Facebook gui lai webhook do khong nhan 200 kip, cac luong nay co the duoc xu ly va gui tin lai lan 2 cho khach.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 756,
+    "category": "reliability",
+    "evidence": "await menuCodeHandoffHandler.handleReferralOnly(senderId, baseUrlOverride, {",
+    "severity": "high",
+    "explanation": "Nhanh referral-only auto-menu (event khong co message.text hay postback.payload, vi du khach mo link ads referral / m.me) return o dong 761 truoc khi cham toi shouldSkipDuplicateMessageText o dong 764, va event nay cung khong co mid nen tryMarkMid o tren cung khong ap dung - tuc la duong gui menu nay khong di qua BAT KY lop dedup cap-webhook nao. Lop bao ve duy nhat con lai la cooldown 15 giay trong sendMenu (shouldSkipRecentMenuSend, core/webhook.js:143-162, thuan in-memory, mat khi restart/scale nhieu instance). Neu Facebook resend webhook sau hon 15s - de xay ra vi gui menu kem nhieu anh von cham, chinh la ly do de bi timeout ack luc dau - khach se nhan menu/anh lap lan 2, khop voi su co production da ghi nhan.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/messenger-send-errors.js",
+    "line": 38,
+    "category": "error-handling",
+    "evidence": "return error.code === 10 && OUTSIDE_ALLOWED_WINDOW_SUBCODES.has(error.subcode) && false;",
+    "severity": "high",
+    "explanation": "`&& false` khien isOutsideAllowedWindowMessengerError() LUON tra ve false du error.code===10 va subcode khop (2018278/2018065/2534022). Test tuong ung (tests/messenger-send-errors.test.js:40) ky vong true nhung code thuc te tra false — cho thay day la regression/dead code, khong phai chu y. He qua: isNonRetryableMessengerSendError() (dung tai core/webhook.js:607,633,782,800,1066) khong bao gio nhan dien duoc loi code 10 (ngoai cua so 24h), nen loi nay roi xuong nhanh generic 'messenger_send_failed' va bi retry mu (vi du re-throw o webhook.js:641 khien job queue thu lai) thay vi bi chan ngay nhu loi 551. Day chinh la kieu loi code-10 tu traffic ads duoc mo ta trong su co production.",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "index.js",
+    "line": 268,
+    "category": "config",
+    "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+    "severity": "high",
+    "explanation": "FB_PAGE_TOKEN doesn't fail fast when missing — it falls back to a hardcoded literal that matches the shape of a real Facebook Page Access Token, baked into source. This also silently defeats the startup guard at index.js:548-561 (`required = { FB_PAGE_TOKEN }`, checked via `if (!v)`), because the fallback means the value can never be falsy, so that check can never fire for this variable. A deploy with an empty FB_PAGE_TOKEN env var boots successfully and starts making Messenger API calls with this embedded credential instead of erroring with a clear message.",
+    "_item": "CFG-01"
+  },
+  {
+    "file": "index.js",
+    "line": 267,
+    "category": "config",
+    "evidence": "const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;",
+    "severity": "medium",
+    "explanation": "FB_VERIFY_TOKEN is read directly with no default and, unlike FB_PAGE_TOKEN (guarded at index.js:548), FB_APP_SECRET (warned at index.js:570-572), or GEMINI_API_KEY (guarded at index.js:552-554), it is never added to the startup `required` fail-fast check (index.js:548-561) and never warned about. If unset it stays `undefined` and flows straight into the webhook subscribe-verification check in core/webhook.js:523 (`token === fbVerifyToken`), so a missing env var doesn't crash at startup or log anything — it just makes Facebook's webhook verification challenge always fail, with no message pointing back to the missing FB_VERIFY_TOKEN.",
+    "_item": "CFG-01"
+  }
+]

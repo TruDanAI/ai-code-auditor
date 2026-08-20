@@ -20,6 +20,7 @@ Thumbs.db
 
 # Agent run artifacts (so chi phi - du lieu chay, khong phai code)
 agent_log.jsonl
+audit_results.jsonl
 
 # Benchmark runtime artifacts. Keep locally/archive externally; do not commit
 # source snapshots or large raw provider transcripts by accident.

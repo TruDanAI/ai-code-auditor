@@ -1,0 +1,110 @@
+[
+  {
+    "file": "core/webhook.js",
+    "line": 527,
+    "category": "crypto",
+    "evidence": "if (mode === 'subscribe' && token === fbVerifyToken) {",
+    "severity": "high",
+    "explanation": "The GET /webhook handler that verifies Facebook's webhook subscription challenge compares the client-supplied hub.verify_token directly against the secret fbVerifyToken using plain === instead of crypto.timingSafeEqual. String === short-circuits on the first differing byte, leaking timing information that lets an attacker incrementally brute-force the token. This is inconsistent with the rest of the codebase: the POST /webhook handler right below it (verifySignature, line 276) correctly uses crypto.timingSafeEqual for the HMAC signature, and admin-auth.js's safeEqualSecret / admin/session.js's safeEqualText both hash-then-timingSafeEqual before comparing secrets.",
+    "_item": "CRY-02"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 266,
+    "category": "input",
+    "evidence": "if (!fbAppSecret) return true;",
+    "severity": "high",
+    "explanation": "Neu FB_APP_SECRET khong duoc cau hinh (index.js:570-573 chi console.warn, khong chan khoi dong/khong fail-closed), verifySignature() luon tra ve true. Ket qua: moi POST /webhook tu bat ky ai (khong can biet secret, khong can chu ky HMAC hop le) deu duoc xu ly nhu du lieu that tu Facebook. Day la fail-open thay vi fail-closed tai diem xac thuc chinh cua toan bo webhook.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 551,
+    "category": "input",
+    "evidence": "for (const event of entry.messaging || []) {",
+    "severity": "medium",
+    "explanation": "entry lay tu body.entry (JSON client gui, khong co schema validation). entry.messaging chi guard truong hop entry ton tai binh thuong nhung entry la object; neu mot phan tu trong body.entry la null hoac primitive (vd {\"object\":\"page\",\"entry\":[null]}), entry.messaging nem TypeError. Loi nay xay ra trong route handler async (app.post('/webhook', ...)) va khong co try/catch bao quanh vong for nay, gay unhandled rejection cho request do. Neu ket hop voi finding tai line 266 (khong bat buoc chu ky), bat ky nguoi la nao cung co the kich hoat.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 542,
+    "category": "input",
+    "evidence": "if (body.object !== 'page') return res.sendStatus(200);",
+    "severity": "medium",
+    "explanation": "body = req.body duoc truy cap thuoc tinh .object ma khong kiem tra body ton tai. express.json() (index.js:577) chi gan req.body khi Content-Type la application/json; voi Content-Type khac (hoac thieu), req.body co the la undefined va dong nay nem TypeError chua duoc bat, tuong tu rui ro unhandled rejection nhu tren.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 297,
+    "category": "input",
+    "evidence": "return `${forwardedProto}://${forwardedHost}`;",
+    "severity": "medium",
+    "explanation": "inferBaseUrlFromRequest() dung truc tiep header X-Forwarded-Proto/X-Forwarded-Host do client tu dat, khong allowlist/validate host. Gia tri nay (baseUrlOverride) sau do di thang vao getMenuImageUrls/buildRequestedImageUrls/sendHotCarousel de dung URL anh gui cho khach qua Messenger. Neu server khong that su duoc dat sau reverse proxy tin cay (trust proxy sai cau hinh hoac bi truy cap truc tiep), ke tan cong co the lam sai lech domain trong URL anh gui ra ma khong can pha vo chu ky HMAC (chu ky chi bao ve body, khong bao ve header).",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 661,
+    "category": "reliability",
+    "evidence": "if (mid) {",
+    "severity": "high",
+    "explanation": "Co che dedup goc (tryMarkMid) la ben duy nhat dang tin cay: khoa theo (tenant_id, page_id, mid), ghi xuong Postgres/file adapter, khong TTL (chi gioi han so luong qua MID_LIMIT) nen song sot qua restart va nhieu instance. Nhung no chi chay khi 'mid' ton tai (dong 653: const mid = event.message?.mid;) - tuc CHI ap dung cho su kien co event.message (tin nhan van ban/anh). Su kien postback (nguoi dung bam nut menu/quick reply dang postback, khong co truong message) khong bao gio co mid, nen hoan toan bo qua lop dedup ben vung nay. Khi Facebook gui lai (retry) mot postback event vi khong nhan 200 kip thoi, request se roi thang xuong lop du phong yeu hon: shouldSkipDuplicateMessageText (dong 769) - la Map trong bo nho tien trinh (recentMessageTextKeys, dong 85), TTL chi 5 giay (MESSAGE_TEXT_DEDUPE_TTL_MS). Neu retry den sau 5s, hoac request thu hai roi vao tien trinh/instance khac (scale ngang, restart giua chung), khong co gi chan duoc xu ly + gui tin lap lan 2 - dung khop voi su co production da ghi nhan.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 761,
+    "category": "reliability",
+    "evidence": "await menuCodeHandoffHandler.handleReferralOnly(senderId, baseUrlOverride, {",
+    "severity": "high",
+    "explanation": "Duong gui menu tu dong cho referral-only event (khach bam quang cao/shortlink, khong kem message hay postback) khong di qua CA HAI lop dedup: khong co mid (bo qua tryMarkMid o dong 661) VA khong co userText (return som o nhanh !userText truoc khi cham toi shouldSkipDuplicateMessageText o dong 769). Bao ve duy nhat con lai la shouldSkipRecentMenuSend trong modes/menu-code-handoff.js (goi tu sendMenu, dong 178) - cung la Map bo nho tien trinh, TTL 15 giay (MENU_SEND_COOLDOWN_MS). Day la duong gui tin (gui menu) co it lop bao ve nhat trong toan bo webhook: khong ben vung, khong chia se giua cac instance, TTL ngan hon nhieu so voi cua so retry thuc te cua Facebook.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/messenger-client.js",
+    "line": 43,
+    "category": "error-handling",
+    "evidence": "if (status && status >= 400 && status < 500) break;",
+    "severity": "medium",
+    "explanation": "postFb() chỉ quyết định retry dựa trên khoảng HTTP status (4xx = fail fast, còn lại mới retry), không đọc error.code/error_subcode trong body. Graph API trả lỗi rate limit (code 613, cũng như 4/17/32) qua HTTP 400 giống hệt lỗi vĩnh viễn (token sai, permission thiếu), nên request bị rate-limit sẽ bị fail-fast không backoff — ngược với yêu cầu 613 phải retry có backoff. Codebase đã có logic nhận diện RATE_LIMIT_ERROR_CODES = [4,17,32,613] ở scripts/check-page-token-health.js:186 nhưng không được áp dụng ở đường gửi tin nhắn thật (nơi traffic từ ads dồn vào).",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "core/messenger-send-errors.js",
+    "line": 43,
+    "category": "error-handling",
+    "evidence": "return isRecipientUnavailableMessengerError(err) || isOutsideAllowedWindowMessengerError(err);",
+    "severity": "medium",
+    "explanation": "isNonRetryableMessengerSendError() chỉ phân loại code 551/subcode 1545041 (recipient unavailable) và code 10 (outside allowed window) là non-retryable; code 613 (rate limit) hoàn toàn không được nhận diện ở module này. Hệ quả: mọi catch trong core/webhook.js (dòng 611, 637, 787, 805, 1071) coi lỗi 613 giống hệt một lỗi lạ chưa biết — chỉ log/alert rồi nuốt (đường request) hoặc rethrow mù vào cơ chế retry chung của webhook-queue (đường queue), không có backoff riêng cho rate limit như yêu cầu.",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "core/admin-routes.js",
+    "line": 1165,
+    "category": "config",
+    "evidence": "adminSessionSecret = process.env.SESSION_SECRET || '',",
+    "severity": "medium",
+    "explanation": "SESSION_SECRET không nằm trong danh sách `required` được kiểm tra lúc khởi động (index.js:548-568 chỉ check FB_VERIFY_TOKEN, FB_PAGE_TOKEN, có điều kiện FB_APP_SECRET/GEMINI_API_KEY). Thiếu biến này sẽ fallback về chuỗi rỗng và app vẫn boot/pass healthcheck bình thường trên Railway. Guard thực sự chỉ nằm trong core/admin/session.js:122-126, và chỉ throw khi có người thực sự bấm đăng nhập admin — nghĩa là lỗi cấu hình chỉ lộ ra khi tính năng admin login được dùng, không phải lúc deploy.",
+    "_item": "CFG-01"
+  },
+  {
+    "file": "core/admin/session.js",
+    "line": 103,
+    "category": "config",
+    "evidence": "sessionSecret = process.env.SESSION_SECRET || '',",
+    "severity": "medium",
+    "explanation": "Cùng biến SESSION_SECRET, cùng pattern fallback rỗng thay vì fail-fast. Có throw rõ ràng ở dòng 123 ('SESSION_SECRET must be at least 32 characters...') nhưng chỉ kích hoạt bên trong createSessionToken() khi có request đăng nhập — không có check nào chạy ở thời điểm khởi động server để bắt sớm việc thiếu/ngắn secret trước khi deploy xong.",
+    "_item": "CFG-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 71,
+    "category": "config",
+    "evidence": "masterKey = process.env.CREDENTIAL_MASTER_KEY",
+    "severity": "medium",
+    "explanation": "CREDENTIAL_MASTER_KEY (khóa giải mã Facebook page token trong DB multi-shop) không được validate lúc khởi động. Nếu thiếu, resolvePageCredential() trả về {found:false, reason:'credential_master_key_missing'} một cách âm thầm (không throw, không log lỗi ở mức server) — server vẫn chạy bình thường, webhook vẫn nhận request, nhưng mọi lần resolve page credential cho shop dùng DB sẽ lặng lẽ thất bại cho tới khi có người kiểm tra log chi tiết của request đó.",
+    "_item": "CFG-01"
+  }
+]

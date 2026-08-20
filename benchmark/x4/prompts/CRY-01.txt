@@ -1,0 +1,4 @@
+[MUC AUDIT CRY-01 | category='crypto' | severity goi y: high]
+He thong co dung thuat toan ma hoa/hash yeu khong? Khao sat mat duong truoc: grep 'createHash|createHmac|createCipher|crypto' ext='.js' xem dang dung gi; roi grep danh sach yeu '\bmd5\b|\bsha1\b|\bdes\b|\brc4\b' ext='.js'. read_file it nhat 1 ham ma hoa chinh de xac nhan.
+BAT BUOC: moi finding cua muc nay dien category='crypto'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

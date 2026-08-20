@@ -1,0 +1,4 @@
+[MUC AUDIT CFG-01 | category='config' | severity goi y: medium]
+App co fail-fast khi thieu bien moi truong bat buoc khong? Grep 'process.env' ext='.js': cac bien quan trong (token, secret, DB path) co duoc validate luc khoi dong (thieu -> throw/exit voi message ro) hay dung truc tiep de undefined troi vao runtime roi chet im lang? Diem danh bien nao co guard, bien nao khong. (Nguon: su co production that - loi env khi deploy Railway.)
+BAT BUOC: moi finding cua muc nay dien category='config'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

@@ -1,0 +1,4 @@
+[MUC AUDIT ERR-01 | category='error-handling' | severity goi y: medium]
+Loi tu Facebook Graph API co duoc phan loai xu ly rieng khong? Grep 'error.code|error_subcode|551|\b613\b' ext='.js' va doc nhanh catch: ma 10 (ngoai cua so 24h/thieu permission), 551 (nguoi dung khong kha dung - block/khoa acc), 613 (rate limit) can xu ly KHAC nhau (551 khong duoc retry, 613 phai backoff). Nuot chung moi loi hoac retry mu = finding. (Nguon: su co production that - loi 10/551 voi traffic tu ads.)
+BAT BUOC: moi finding cua muc nay dien category='error-handling'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

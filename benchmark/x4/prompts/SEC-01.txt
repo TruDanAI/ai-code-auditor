@@ -1,0 +1,4 @@
+[MUC AUDIT SEC-01 | category='secret' | severity goi y: critical]
+Tim secret hardcode trong code .js: grep cac pattern 'EAAG' (page access token Facebook), 'api_key', 'apikey', 'secret', 'password', 'Bearer ' xem co CHUOI LITERAL nao gan thang gia tri that khong. Phan biet ro: doc tu process.env hoac file config ngoai repo = an toan (ghi verified_ok); gan chuoi literal dai/ngau nhien = finding.
+BAT BUOC: moi finding cua muc nay dien category='secret'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

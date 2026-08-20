@@ -1,0 +1,4 @@
+[MUC AUDIT DEP-01 | category='dependency' | severity goi y: medium]
+read_file package.json: liet ke dependencies + version. Co package nao pinned o major version qua cu hoac co CVE noi tieng da biet khong (vd lodash <4.17.21 prototype pollution, axios <1.6 SSRF...)? Chi bao finding khi BIET CHAC CVE cu the - khong doan mo 'co the cu'; khong chac thi ghi not_checked de nguoi chay 'npm audit' xac nhan.
+BAT BUOC: moi finding cua muc nay dien category='dependency'.
+Tra ve JSON dung schema: findings[] gom file (duong dan TUONG DOI tu goc repo), line (so nguyen lay tu noi dung file, KHONG doan), category, evidence (trich NGUYEN VAN dung 1 dong code tai file:line), severity, explanation. Neu khong tim thay van de nao thi findings = [] - do la cau tra loi TOT.

@@ -1,0 +1,182 @@
+[
+  {
+    "file": "index.js",
+    "line": 268,
+    "category": "secret",
+    "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+    "severity": "critical",
+    "explanation": "Hardcoded literal string matching the Facebook Page Access Token format (EAAG prefix) is used as a fallback value when FB_PAGE_TOKEN is not set via environment variable. This is a real-looking, long random-looking token committed directly in source code, not merely read from process.env/external config — if valid, it grants Messenger send/API access on the associated Facebook Page and should be revoked and removed immediately, replaced with no default (fail closed) instead of a literal fallback.",
+    "_item": "SEC-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 105,
+    "category": "secret",
+    "evidence": "console.log(`[credentials] resolved token for shop=${normalizedShopId}: ${secret}`);",
+    "severity": "high",
+    "explanation": "resolvePageCredential decrypts the page's Facebook access token and immediately writes the raw plaintext secret to stdout on every successful lookup (i.e. on every inbound webhook/admin call that needs to send a message). This directly violates the project's own documented rule in .agent/skills/credential-safety.md ('A token is received once and never echoed back. Never print, log, return, snapshot, or test against a real token.'). Anyone with access to application logs (Railway log viewer, log aggregator, error tracker breadcrumbs) can read a live, usable Facebook Page access token for the shop, allowing them to send messages as the page or make other Graph API calls with it. There is no redact/mask call on this line (compare to pageRef()/redactSensitiveText() used consistently elsewhere in core/webhook.js). Fix: delete the line or replace with a safe summary like `console.log(`[credentials] resolved token for shop=${shopRef(normalizedShopId)}`)`.",
+    "_item": "SEC-02"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 32,
+    "category": "crypto",
+    "evidence": "const iv = Buffer.alloc(12, 0);",
+    "severity": "high",
+    "explanation": "AES-256-GCM is used correctly as an algorithm, but every encryption call reuses the same fixed, all-zero 12-byte IV (line 32-33) with the same derived key instead of generating a fresh random IV per call. GCM security depends on IV uniqueness per key: reusing it lets an attacker XOR two ciphertexts to cancel the keystream and recover plaintext relationships, and once the keystream for one IV is known, forge valid GCM auth tags for other messages under the same key. This is functionally equivalent to using a broken cipher mode even though the primitive itself (AES-256-GCM) is strong. Fix: crypto.randomBytes(12) per call, store the IV alongside the ciphertext (the format already has an ivPart field so this is a low-effort fix).",
+    "_item": "CRY-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 25,
+    "category": "crypto",
+    "evidence": "return crypto.createHash('sha256').update(value, 'utf8').digest();",
+    "severity": "medium",
+    "explanation": "The AES-256-GCM key is derived from the master key by a single raw SHA-256 hash rather than a proper KDF (HKDF/PBKDF2/scrypt). A raw hash provides no key-stretching and is not designed as a KDF, so if CREDENTIAL_MASTER_KEY is ever a lower-entropy value (not a truly random 256-bit secret), the derived key inherits that weakness. Not urgent since the master key is presumably a strong generated secret, but should use crypto.hkdfSync or similar for defense in depth.",
+    "_item": "CRY-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 275,
+    "category": "crypto",
+    "evidence": "return sig === expected;",
+    "severity": "high",
+    "explanation": "verifySignature() compares the X-Hub-Signature-256 HMAC (sig) against the locally computed HMAC (expected) using plain string equality (===) instead of crypto.timingSafeEqual. String === short-circuits on the first differing character, so response time leaks how many leading hex characters of the signature are correct, letting a remote attacker recover the valid signature byte-by-byte via a timing side-channel and forge webhook payloads without knowing fbAppSecret.",
+    "_item": "CRY-02"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 523,
+    "category": "crypto",
+    "evidence": "if (mode === 'subscribe' && token === fbVerifyToken) {",
+    "severity": "medium",
+    "explanation": "The GET /webhook subscribe handshake compares the caller-supplied hub.verify_token against the configured fbVerifyToken secret with ===, not crypto.timingSafeEqual. Because === also short-circuits on the first mismatched character, an attacker probing this public endpoint can use response-time differences to brute-force fbVerifyToken character by character. Severity is lower than the signature check since this token only gates the one-time subscription handshake, not payload authenticity.",
+    "_item": "CRY-02"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 32,
+    "category": "crypto",
+    "evidence": "const iv = Buffer.alloc(12, 0);",
+    "severity": "critical",
+    "explanation": "encryptCredential() uses a constant, hardcoded all-zero 12-byte IV for AES-256-GCM on every call instead of generating a fresh IV via crypto.randomBytes(12). Because the same (key, IV) pair is reused across every credential encrypted with a given master key, an attacker who obtains two ciphertexts can XOR them to recover the XOR of the plaintexts (keystream reuse), and GCM's authentication/integrity guarantee is broken entirely under nonce reuse (forgery becomes feasible via the GHASH collision). Fix: generate iv = crypto.randomBytes(12) per encryption call and store/encode it alongside the ciphertext (the code already stores ivPart in the envelope, so decryptCredential does not need to change).",
+    "_item": "CRY-03"
+  },
+  {
+    "file": "core/admin/session.js",
+    "line": 170,
+    "category": "auth",
+    "evidence": "return { ok: false, statusCode: 401, reason: 'expired_admin_session' };",
+    "severity": "high",
+    "explanation": "createSessionToken embeds an exp timestamp (line 142: exp: issuedAt + maxAgeMs) and the token is properly signed with HMAC-SHA256 (signValue, line 55) and verified with a constant-time comparison (safeEqualText, line 159) — signing is fine. But verifySessionToken (lines 149-181) never reads or compares payload.exp against the current time anywhere in the function. The only branch that returns reason 'expired_admin_session' (line 169-171) actually fires on `payload.v !== 1`, a version mismatch, not on real expiration — there is no code path that rejects an old-but-validly-signed token. As a result, once issued, an admin session token remains accepted forever (until SESSION_SECRET is rotated), regardless of the intended 8-hour TTL (DEFAULT_SESSION_TTL_MS, line 9) and regardless of the cookie's Max-Age, which only affects whether the browser resends it, not whether the server accepts it. A token captured via logs, a proxy, referrer leakage, or a browser/device compromise stays valid indefinitely, and logout (submitLogout, line 420) only clears the cookie client-side without any server-side revocation, so a copied token keeps working after the user logs out.",
+    "_item": "AUTH-02"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 32,
+    "category": "doc-mismatch",
+    "evidence": "const iv = Buffer.alloc(12, 0);",
+    "severity": "high",
+    "explanation": ".agent/skills/credential-safety.md:24 states as an encryption guarantee: \"Every encryption draws a fresh random 96-bit IV, so encrypting the same token twice never yields the same envelope.\" But encryptCredential() at core/credentials/page-credentials.js:32-33 builds the AES-256-GCM IV with `Buffer.alloc(12, 0)` — a constant all-zero 12-byte buffer, never crypto.randomBytes(). Every call uses the same IV, so encrypting the same token twice DOES yield an identical envelope, the opposite of the documented guarantee, and is also a real AES-GCM nonce-reuse vulnerability (nonce reuse under GCM can leak the authentication key).",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 25,
+    "category": "doc-mismatch",
+    "evidence": "return crypto.createHash('sha256').update(value, 'utf8').digest();",
+    "severity": "high",
+    "explanation": ".agent/skills/credential-safety.md:23 states: \"The 32-byte content key is derived from `CREDENTIAL_MASTER_KEY` with scrypt using a per-shop salt; the master key is never used as key material directly.\" But deriveCredentialKey() at core/credentials/page-credentials.js:22-26 derives the key with a single plain, unsalted crypto.createHash('sha256') over the raw master key — no scrypt, no per-shop salt, and no shop-scoping is passed into deriveCredentialKey() at all (it takes only `masterKey`). Every shop's credentials are encrypted under the exact same derived key, contradicting the documented per-shop-salt guarantee.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/credentials/page-credentials.js",
+    "line": 105,
+    "category": "doc-mismatch",
+    "evidence": "console.log(`[credentials] resolved token for shop=${normalizedShopId}: ${secret}`);",
+    "severity": "critical",
+    "explanation": ".agent/skills/credential-safety.md:8 lists as a Hard Rule: \"Never print, log, return, snapshot, or test against a real token.\" But resolvePageCredential() at core/credentials/page-credentials.js:105 does exactly that: it console.logs the fully decrypted Facebook Page token (the `secret` variable, output of decryptCredential()) on every successful credential resolution, writing the live secret straight into process logs — a direct violation of the documented rule and an active secret-leak path.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/admin/product-writes.js",
+    "line": 391,
+    "category": "doc-mismatch",
+    "evidence": "if (!hasPermission(principal, PERMISSIONS.PRODUCT_WRITE)) {",
+    "severity": "medium",
+    "explanation": "docs/runbooks/admin-auth-rbac-audit-runbook.md:25-27 states: \"Write permissions are present only as future gates. They must not be connected to production write routes until the write workflow has its own design, confirmation UI, tests, and owner approval.\" But assertWritePermission() at core/admin/product-writes.js:390-394 already gates createProduct/updateProduct/etc. on PERMISSIONS.PRODUCT_WRITE, and this is wired into live Express handlers, e.g. core/admin-routes.js:1371-1379 (sendNewShopForm) and core/admin-routes.js:1382-1389 (createShopApi) both call authorizeAdminRequest({ permission: PERMISSIONS.PRODUCT_WRITE, ... }) before executing the write. The maintainer role in core/admin-auth.js:25-33 already grants PRODUCT_WRITE and INTERNAL_NOTE_WRITE. Write permissions are already connected to dozens of production write routes, not merely 'future gates' as the runbook claims.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "package.json",
+    "line": 23,
+    "category": "dependency",
+    "evidence": "\"lodash\": \"4.17.15\",",
+    "severity": "high",
+    "explanation": "lodash is pinned exactly to 4.17.15 (no ^/~, so npm will never bump it). Versions <4.17.21 have known, confirmed CVEs: CVE-2020-8203 (prototype pollution via zipObjectDeep) and CVE-2021-23337 (command injection via template()). Fix: upgrade to >=4.17.21 (e.g. \"^4.17.21\").",
+    "_item": "DEP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 646,
+    "category": "input",
+    "evidence": "const senderId = event.sender.id;",
+    "severity": "high",
+    "explanation": "event objects come straight from body.entry[].messaging[] (line 546-548) with no shape validation, and if fbAppSecret isn't configured verifySignature() accepts any request unauthenticated. Every other read of this same field in the file guards it with optional chaining (event.sender?.id at lines 286, 549, 552), but handleEvent reads event.sender.id directly. A messaging event without a sender object (malformed/attacker payload, or a Meta event type that omits it) throws a TypeError here, before the 'if (!senderId) return;' guard on line 647 ever gets a chance to run. It's caught by try/catch at the request-loop call sites (line 606, 632), so it doesn't crash the process, but it silently drops that event and — via the webhookQueue path (line 641 rethrows) — can drive retry/DLQ churn on every malformed event.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 293,
+    "category": "input",
+    "evidence": "return `${forwardedProto}://${forwardedHost}`;",
+    "severity": "medium",
+    "explanation": "inferBaseUrlFromRequest() builds the base URL straight from the client-supplied X-Forwarded-Proto / X-Forwarded-Host headers with no allowlist/hostname check. The HMAC signature (verifySignature, line 265) only covers req.rawBody, not headers, so any stranger hitting POST /webhook can spoof these headers regardless of whether fbAppSecret is set. The resulting baseUrl is passed on as baseUrlOverride into getMenuImageUrls/buildRequestedImageUrls (used at lines 971-974) to construct absolute image URLs that get sent to Messenger, so a spoofed Host header lets an outside caller control the origin the bot advertises images from.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 649,
+    "category": "reliability",
+    "evidence": "const mid = event.message?.mid;",
+    "severity": "high",
+    "explanation": "Co che dedup ben vung (runtimeStorage.tryMarkMid, dua tren khoa mid, luu trong Postgres/file - khong het han, xem core/storage/postgres-adapter.js:1114) CHI chay khi event co event.message.mid (dong 649, 657: if (mid) {...}). Cac su kien postback (nut bam menu/CTA) lay userText tu event.postback?.payload (dong 751) va KHONG BAO GIO co message.mid theo cau truc Messenger Platform, nen doan guard 'if (mid)' bi bo qua hoan toan cho toan bo luong postback - dung dung y comment o dong 656 'Dedup theo message id (Meta co the retry)'. Lop bao ve duy nhat con lai cho postback la shouldSkipDuplicateMessageText (dong 764), voi TTL chi 5 giay (MESSAGE_TEXT_DEDUPE_TTL_MS, dong 26) va luu trong Map in-memory (recentMessageTextKeys, dong 85) - mat khi restart/deploy va khong dung chung giua nhieu instance khi scale ngang. Meta co the retry webhook lau hon 5 giay (backoff nhieu phut/gio khi khong nhan 200 kip thoi), nen mot postback bi retry sau >5s hoac roi vao instance khac se duoc xu ly lai tu dau va gui lai tin nhan/menu cho khach lan 2 - dung kich ban su co da xay ra trong production. tests/webhook.test.js khong co test nao cho postback events, xac nhan khoang trong nay chua duoc kiem thu.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/messenger-send-errors.js",
+    "line": 38,
+    "category": "error-handling",
+    "evidence": "return error.code === 10 && OUTSIDE_ALLOWED_WINDOW_SUBCODES.has(error.subcode) && false;",
+    "severity": "high",
+    "explanation": "`&& false` cuối biểu thức khiến isOutsideAllowedWindowMessengerError() luôn trả về false, bất kể code/subcode có khớp OUTSIDE_ALLOWED_WINDOW_SUBCODES (2018278, 2018065, 2534022 — đúng 3 subcode thực tế Facebook trả cho lỗi code 10 'outside 24h window'/thiếu quyền pages_messaging) hay không. Đây là dead code, không phải chủ đích: test tests/messenger-send-errors.test.js dòng 37-43 assert isOutsideAllowedWindowMessengerError(err) phải là true cho code 10 — assertion này hiện đang FAIL với code này. Hệ quả runtime: lỗi code 10 (rất phổ biến, xảy ra mỗi khi khách nhắn ngoài cửa sổ 24h) không được isNonRetryableMessengerSendError() nhận diện, rơi vào nhánh generic trong core/webhook.js (khoảng dòng 1073-1081) — kích hoạt sendTelegramOperationalAlert() cảnh báo vận hành cho một điều kiện vốn bình thường, thay vì được log gọn với reason='outside_allowed_window' như 551 (isRecipientUnavailableMessengerError, không bị lỗi này) đang làm đúng.",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "core/messenger-client.js",
+    "line": 43,
+    "category": "error-handling",
+    "evidence": "if (status && status >= 400 && status < 500) break;",
+    "severity": "medium",
+    "explanation": "Hàm postFb() — nơi thực sự gọi Graph API để gửi tin — quyết định có retry hay không CHỈ dựa vào HTTP status (4xx thì break ngay, còn lại thì sleep rồi thử lại), không hề đọc error.code/error_subcode trong response.data.error. Facebook Graph API trả HTTP 400 cho phần lớn lỗi ứng dụng, gồm cả rate limit (code 4/17/32/613, xem RATE_LIMIT_ERROR_CODES trong scripts/check-page-token-health.js:186) lẫn lỗi vĩnh viễn như OAuth/permission (190/10). Vì vậy lỗi 613 rơi vào đúng nhánh 'break ngay, không backoff' như một lỗi 4xx thực sự không nên retry — trái yêu cầu '613 phải backoff'. Việc phân loại rate_limited theo 613 hiện chỉ tồn tại trong scripts/check-page-token-health.js (dùng cho báo cáo health-check định kỳ), không được dùng lại ở đường gửi tin thật trong messenger-client.js — hai module tách rời nên logic retry không được hưởng lợi từ phân loại lỗi đã có sẵn.",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "index.js",
+    "line": 268,
+    "category": "config",
+    "evidence": "const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN || 'EAAGm7ZBv8xQBPZCZBk4mZC8pQvWnZBd0hT2sL9yR3fN6bK1cXZBa8dLpJ2rM5tVwYnZBH0qZBgUefZAoiKcZC3sZDZD';",
+    "severity": "critical",
+    "explanation": "FB_PAGE_TOKEN dùng fallback là một chuỗi giống Facebook Page Access Token thật viết cứng trong source thay vì fail-fast khi thiếu env. Hậu quả kép: (1) lộ secret ngay trong mã nguồn/git history; (2) vô hiệu hóa guard 'required' ở index.js:548-561 — vì biến này không bao giờ falsy (luôn có fallback), nên vòng kiểm tra `missing.length` (dòng 561-568) không bao giờ phát hiện được trường hợp thiếu FB_PAGE_TOKEN thật trên môi trường deploy (vd Railway thiếu biến), app khởi động 'thành công' nhưng gọi Facebook API bằng token lạ/hết hạn mà không cảnh báo gì.",
+    "_item": "CFG-01"
+  },
+  {
+    "file": "index.js",
+    "line": 267,
+    "category": "config",
+    "evidence": "const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;",
+    "severity": "high",
+    "explanation": "FB_VERIFY_TOKEN không có fallback và cũng không nằm trong danh sách `required` được validate lúc khởi động (index.js:548-561, chỉ có FB_PAGE_TOKEN, và có điều kiện FB_APP_SECRET/GEMINI_API_KEY/GOOGLE_CLOUD_PROJECT). Nếu thiếu biến môi trường này khi deploy, FB_VERIFY_TOKEN = undefined nhưng app vẫn start bình thường, không log/throw gì ở startup. Runtime chết im lặng tại core/webhook.js:523 (`token === fbVerifyToken`): so sánh với undefined luôn false nên endpoint GET /webhook luôn trả 403 mà không có log giải thích nguyên nhân — đúng kiểu sự cố 'thiếu env -> lỗi im lặng lúc deploy' đã xảy ra trên Railway.",
+    "_item": "CFG-01"
+  }
+]

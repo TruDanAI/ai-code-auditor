@@ -1,0 +1,128 @@
+[
+  {
+    "file": "core/notification-service.js",
+    "line": 75,
+    "category": "secret",
+    "evidence": "console.warn(`⚠️ Không lấy được tên Facebook của ${senderId}: ${e?.message || err.message}`);",
+    "severity": "medium",
+    "explanation": "senderId (the customer's raw Facebook PSID) is interpolated straight into a console.warn call with no hashing/redaction. Everywhere else in the codebase (core/webhook.js, core/utils/log-refs.js) sender/page IDs are passed through pageRef()/shopRef() which SHA-256-hash and truncate the ID before it hits the logs, and core/event-tracker.js's redactSensitiveText/redactEventMeta scrub PII before storage. This call site bypasses that pattern entirely, so a persistent customer identifier ends up verbatim in server logs whenever a Facebook profile-name lookup fails (e.g. rate limiting or an invalid/expired page token), which is a realistic and frequent path. No token or phone/email is exposed here, but it is an inconsistent redaction gap for a PII-grade identifier in the exact codepath (notification service invoked from webhook.js's operational alerting) the audit item targets.",
+    "_item": "SEC-02"
+  },
+  {
+    "file": "core/admin-auth.js",
+    "line": 32,
+    "category": "doc-mismatch",
+    "evidence": "    PERMISSIONS.PRODUCT_WRITE",
+    "severity": "medium",
+    "explanation": "docs/runbooks/admin-auth-rbac-audit-runbook.md:22 describes the `maintainer` role as \"support plus export and audit read\" (read-only), and lines 25-27 of the same doc state: \"Write permissions are present only as future gates. They must not be connected to production write routes until the write workflow has its own design, confirmation UI, tests, and owner approval.\" But core/admin-auth.js:25-33 actually grants `maintainer` both PERMISSIONS.INTERNAL_NOTE_WRITE (line 31) and PERMISSIONS.PRODUCT_WRITE (line 32) — permissions that are themselves classified as write permissions in the WRITE_PERMISSIONS set at admin-auth.js:37-42. The role's real capability (write access) is not reflected in the doc's role summary.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/admin-routes.js",
+    "line": 1384,
+    "category": "doc-mismatch",
+    "evidence": "      permission: PERMISSIONS.PRODUCT_WRITE,",
+    "severity": "medium",
+    "explanation": "docs/runbooks/admin-auth-rbac-audit-runbook.md:25-27 claims write permissions \"are present only as future gates\" and \"must not be connected to production write routes\" until a separate write workflow is designed and approved. Contrary to that, core/admin-routes.js:1382-1389 (`createShopApi`, the live shop-creation endpoint) already calls `authorizeAdminRequest` with `permission: PERMISSIONS.PRODUCT_WRITE` (line 1384), and dozens of other routes in the same file (e.g. lines 1373, 1405, 1436, 1459 ...) do the same. Since `maintainer` (and `owner`) already hold PRODUCT_WRITE per core/admin-auth.js:32/34, these write routes are already reachable in production today, not gated behind future approval as the runbook states.",
+    "_item": "DOC-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 266,
+    "category": "input",
+    "evidence": "if (!fbAppSecret) return true;",
+    "severity": "high",
+    "explanation": "verifySignature() fails OPEN: when fbAppSecret is not configured, every POST to /webhook is accepted as authentic with zero validation of who sent it. index.js only logs a warning and keeps running (FB_APP_SECRET check at index.js:570 does not exit), so in any deployment where the env var is missing/misconfigured, a stranger can POST arbitrary JSON that flows straight into handleEvent() as if it were a real Messenger event.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 542,
+    "category": "input",
+    "evidence": "if (body.object !== 'page') return res.sendStatus(200);",
+    "severity": "high",
+    "explanation": "body = req.body is used with no null/type guard. If the request bypasses signature checks (see line 266 finding) and is sent with a non-JSON Content-Type, express.json() never populates req.body and it stays undefined, so body.object throws inside this async route handler. There is no try/catch around the handler and no global unhandledRejection guard in index.js, so the request hangs with no response and, on Node >=15 default settings, the whole process can be terminated.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 550,
+    "category": "input",
+    "evidence": "for (const entry of body.entry || []) {",
+    "severity": "high",
+    "explanation": "body.entry || [] only guards against a falsy value; it does not check Array.isArray(). A payload like {\"object\":\"page\",\"entry\":{}} passes body.object === 'page' and reaches this line, where for...of on a non-iterable object throws 'is not iterable' with no surrounding try/catch — same unhandled-rejection risk as the line 542 finding.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 551,
+    "category": "input",
+    "evidence": "for (const event of entry.messaging || []) {",
+    "severity": "high",
+    "explanation": "entry (an element of the attacker-controlled body.entry array) is accessed as entry.messaging with no optional chaining; entry: null in the payload throws immediately. Even when entry is an object, entry.messaging || [] again skips Array.isArray(), so entry.messaging being a non-array truthy value (string/object) also throws 'is not iterable'. Both crash the unguarded async handler rather than being rejected as a clean 400.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 297,
+    "category": "input",
+    "evidence": "return `${forwardedProto}://${forwardedHost}`;",
+    "severity": "medium",
+    "explanation": "inferBaseUrlFromRequest builds the base URL straight from the client-supplied X-Forwarded-Proto/X-Forwarded-Host headers (and the plain Host header at line 303 as fallback) with no allowlist/validation. The HMAC signature only covers the raw body, never these headers, so this value is effectively unauthenticated. It is passed as baseUrlOverride into getMenuImageUrls/buildRequestedImageUrls and ends up embedded in image URLs sent out via sendImage — a header-injection surface that should be validated against a known host instead of trusted verbatim.",
+    "_item": "INP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 653,
+    "category": "reliability",
+    "evidence": "const mid = event.message?.mid;",
+    "severity": "high",
+    "explanation": "MID idempotency (tryMarkMid, line 666) only runs when event.message.mid exists. Postback events (Get Started button, persistent menu, generic-template buttons) and referral-only events (ads referral via m.me link, event.referral) have no message.mid, so they never enter the persistent dedup block at lines 661-674. Their only protection is the in-memory shouldSkipDuplicateMessageText check (5s TTL) — see finding at line 85 — which is far weaker than the persisted, unbounded-TTL mid dedup used for normal text messages. A Facebook webhook retry for a postback/referral event arriving more than a few seconds late is reprocessed and the reply/menu is sent twice, matching the reported production incident.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 761,
+    "category": "reliability",
+    "evidence": "await menuCodeHandoffHandler.handleReferralOnly(senderId, baseUrlOverride, {",
+    "severity": "high",
+    "explanation": "For referral-only events (no message.text/quick_reply/postback.payload), userText stays null, so this call happens before ever reaching shouldSkipDuplicateMessageText (line 769) — that guard is skipped entirely for this path. The only duplicate-send protection is the 15s in-memory shouldSkipRecentMenuSend cooldown invoked inside sendMenu() (menu-code-handoff.js:178), which is not persisted and not mid-based. A retried or duplicate referral webhook arriving after 15s (or delivered right after a process restart) causes the auto-menu message + images to be sent to the customer a second time.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 85,
+    "category": "reliability",
+    "evidence": "const recentMessageTextKeys = new Map();",
+    "severity": "medium",
+    "explanation": "recentMessageTextKeys, recentMenuSendKeys, and recentHotProductsSendKeys (lines 85-87) are plain in-process Maps closed over inside createWebhook(), not backed by storage/DB like tryMarkMid's mid dedup. They are cleared on every process restart/redeploy and are not shared across horizontally-scaled instances behind a load balancer. Since these are the sole fallback dedup for postback and referral-only send paths (see findings at line 653 and 761), any restart or multi-instance routing during a Facebook retry window defeats the only remaining duplicate-send guard for those paths.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/messenger-client.js",
+    "line": 43,
+    "category": "error-handling",
+    "evidence": "if (status && status >= 400 && status < 500) break;",
+    "severity": "medium",
+    "explanation": "postFb() — the function that actually calls the Facebook Send API for every outgoing message — decides whether to retry purely from the HTTP status bucket (4xx vs 5xx/network), never inspecting err.response.data.error.code/error_subcode. Facebook Graph API rate-limit error 613 is returned with a 4xx HTTP status (this repo's own test fixture at tests/page-token-health-script.test.js:587 uses status:400 with code:613), so it falls into the same 'break, no retry' branch as truly permanent errors like invalid recipient or bad params — instead of getting backoff. core/messenger-send-errors.js, which classifies errors for the callers in webhook.js, also only special-cases code 551 (recipient unavailable) and code 10 (outside 24h window); it has no branch for 613. Meanwhile core/credentials/page-token-health.js already has a graphErrorCategory() that correctly buckets code 613 as 'rate_limited' distinct from other 4xx — that logic just isn't reused on the message-send path. Net effect: a 613 rate-limit response on message send fails fast with zero backoff and, in the synchronous request path (core/webhook.js processWebhookRequestEvents, ~line 619), is only console.error'd and the message is dropped with no retry at all.",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "core/admin/wizard-routes.js",
+    "line": 1343,
+    "category": "config",
+    "evidence": "const client = new Client({ connectionString: process.env.DATABASE_URL });",
+    "severity": "medium",
+    "explanation": "DATABASE_URL is read and passed straight into `new Client()` with no existence check first. Every other DB-backed factory in this codebase (core/admin/reader.js:126-130, core/admin/shop-writes.js:220-222, core/storage/postgres-adapter.js:243-245) guards with `if (!databaseUrl) throw ...` before connecting, and even this same file does the check two call sites earlier (wizard-routes.js:220 `if (process.env.DATABASE_URL) { ... }`). Here, if DATABASE_URL is unset, `client.connect()` falls back to libpq's PG* env vars / localhost defaults and fails with an opaque ECONNREFUSED/auth error instead of a clear 'DATABASE_URL is required' message — or worse, silently connects to whatever Postgres the PGHOST/PGUSER defaults resolve to.",
+    "_item": "CFG-01"
+  },
+  {
+    "file": "core/admin/wizard-routes.js",
+    "line": 2399,
+    "category": "config",
+    "evidence": "const dbClient = new (Client || loadPgClient())({ connectionString: process.env.DATABASE_URL });",
+    "severity": "medium",
+    "explanation": "Same pattern as line 1343: process.env.DATABASE_URL is used directly to construct a pg Client with no guard for it being missing/undefined, inconsistent with the fail-fast `if (!databaseUrl) throw new Error(...)` guard used by every other Postgres-backed service factory in core/admin/*.js. A missing DATABASE_URL here surfaces as a generic connection failure deep in this handler rather than a clear startup/config error.",
+    "_item": "CFG-01"
+  }
+]

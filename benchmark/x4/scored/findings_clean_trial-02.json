@@ -1,0 +1,56 @@
+[
+  {
+    "file": "core/webhook.js",
+    "line": 527,
+    "category": "crypto",
+    "evidence": "if (mode === 'subscribe' && token === fbVerifyToken) {",
+    "severity": "medium",
+    "explanation": "The Facebook webhook GET verification handshake compares the caller-supplied hub.verify_token to the configured fbVerifyToken using strict equality (===) instead of crypto.timingSafeEqual. This is a non-constant-time comparison of a secret value, unlike the POST handler's HMAC check on the same file (verifySignature, line 265-280) which correctly uses crypto.timingSafeEqual. Character-by-character timing differences could theoretically let a remote attacker brute-force fbVerifyToken faster than guessing blind, though network jitter makes exploitation harder in practice and the token alone does not grant access to send/forge webhook events (POST payloads are separately authenticated via HMAC signature). Fix: hash both sides (or pad to equal length) and use crypto.timingSafeEqual, consistent with the safeEqualSecret/safeEqualText helpers already used elsewhere in admin-auth.js and admin/session.js.",
+    "_item": "CRY-02"
+  },
+  {
+    "file": "package.json",
+    "line": 22,
+    "category": "dependency",
+    "evidence": "\"express\": \"^4.18.2\",",
+    "severity": "medium",
+    "explanation": "Express < 4.19.2 co lo hong open redirect qua malformed URL (CVE-2024-29041, GHSA-rv95-896h-c2vc). Range ^4.18.2 cho phep resolve ve 4.18.x/4.19.0/4.19.1 (van con dinh CVE nay). Kiem tra version thuc te trong lockfile/node_modules >= 4.19.2, hoac chay npm audit de xac nhan.",
+    "_item": "DEP-01"
+  },
+  {
+    "file": "package.json",
+    "line": 16,
+    "category": "dependency",
+    "evidence": "\"dependencies\": {",
+    "severity": "not_checked",
+    "explanation": "Khong biet chac CVE cu the nao cho cac goi con lai o dung version dang pin: @google/genai ^2.0.0, axios ^1.6.0 (CVE-2023-45857 da duoc fix tu 1.6.0 nen khong flag), cloudinary ^2.10.0, csv-parse ^6.2.1, dotenv ^16.4.5, multer ^2.1.1 (CVE-2022-24434/GHSA-4pg4-qvpc-4q3h la loi cu cua multer 1.x/<2.0.0, da fix o 2.x nen khong flag), pg ^8.20.0. De nguoi chay 'npm audit' xac nhan lai thay vi doan mo.",
+    "_item": "DEP-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 653,
+    "category": "reliability",
+    "evidence": "const mid = event.message?.mid;",
+    "severity": "high",
+    "explanation": "The persistent, storage-backed idempotency guard (storage.tryMarkMid, keyed on Facebook's mid, no TTL — bounded only by MID_LIMIT eviction, backed by a unique DB constraint in postgres-adapter.js or a Set in file-adapter.js) only runs when `mid` is truthy (guarded at webhook.js:661 `if (mid) {`). `mid` is read exclusively from `event.message.mid`. Facebook postback events (button clicks, persistent-menu taps — event.postback.payload, handled at webhook.js:756) and pure referral events (m.me / ads click-to-Messenger — event.referral, handled via handleReferralOnly at webhook.js:761-765) never carry a `message` object, so `mid` is always undefined for them and they skip the dedup block entirely. These paths fall back only to short-lived, in-process, non-persistent guards: a 5s text-match cache (MESSAGE_TEXT_DEDUPE_TTL_MS, webhook.js:26) for postback payloads, or a 15s menu cooldown (MENU_SEND_COOLDOWN_MS, webhook-queue.js irrelevant — defined webhook.js:28) for referral-triggered menu sends. When Meta re-delivers a webhook because the 200 response wasn't received in time (a well-documented real-world occurrence, and the exact scenario reported in production here), any retry landing after these short windows — or on a different app instance if horizontally scaled, since the Maps are per-process — will be processed and sent to the customer a second time. Only text/quick_reply message events with a real `mid` get durable, cross-restart, cross-instance protection.",
+    "_item": "REL-01"
+  },
+  {
+    "file": "core/webhook-queue.js",
+    "line": 266,
+    "category": "error-handling",
+    "evidence": "retryDelayMs: batchOptions.retryDelayMs ?? retryDelayMs",
+    "severity": "medium",
+    "explanation": "Every queued job failure is retried with the same flat retryDelayMs (default 15s, see DEFAULT_RETRY_DELAY_MS at webhook-queue.js:7) regardless of what the underlying error was. markFailedOrRetry (webhook-queue.js:181-185) only pulls safeErrorCode(error) for the last_error log column — it never inspects the error to pick a different delay. The Graph error classifier used upstream, core/messenger-send-errors.js, only special-cases code 10 (outside 24h window) and code 551 (recipient unavailable/blocked) as non-retryable; it has no notion of code 613 (rate limit) at all. So a 613 response takes the same generic 'throw err -> retry in 15s' path as a network blip or a 500, with no backoff — repeatedly hammering an endpoint that just told the app to slow down.",
+    "_item": "ERR-01"
+  },
+  {
+    "file": "core/webhook.js",
+    "line": 619,
+    "category": "error-handling",
+    "evidence": "console.error('❌ handleEvent:', err.response?.data || err.message);",
+    "severity": "low",
+    "explanation": "In the non-queued direct-processing path (processWebhookRequestEvents), any send error that isNonRetryableMessengerSendError doesn't recognize — which today is anything other than code 10 or 551, including 613 rate-limit — is just logged here and the loop moves on to the next event. There is no retry and no backoff for this error class in this path at all, so a rate-limited send is silently dropped instead of being retried later.",
+    "_item": "ERR-01"
+  }
+]
