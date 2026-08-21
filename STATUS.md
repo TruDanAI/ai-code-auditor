@@ -1,7 +1,7 @@
 # STATUS — AI Code Auditor
 
 **Cập nhật:** 17/08/2026  
-**Milestone:** X5 — Model ladder ĐÃ CHẠY. Harness tự viết đạt ngang agent thương mại.  
+**Milestone:** X6 — Ablation validator ĐÃ CHẠY. Claim "harness → precision" đã được đính chính.  
 **Chế độ mặc định hiện tại:** MENTOR MODE cho mutation có bài học; BUILD MODE cho
 scorer/runner/test cơ học sau khi contract đã được giải thích.
 
@@ -32,6 +32,42 @@ scorer/runner/test cơ học sau khi contract đã được giải thích.
   MISS đúng, không ăn điểm may. Đây là bằng chứng mạnh nhất vì sao cần clean-vs-spiked.
 - Offline tests vẫn xanh: 9/9 benchmark unit tests, citation validator 6/6.
 
+## X6 — Ablation `validate_report` (21/08/2026)
+
+Chi tiết: `benchmark/results-x6-validator-ablation.md`. Protocol `8792ae4` commit
+01:08:23, **trước trial đầu tiên** (arm ON khởi động 01:09:12).
+
+| Metric | ON | OFF | Δ |
+|---|---|---|---|
+| recall | 47.6% | 42.9% | −4,7 |
+| precision | 50.4% | 43.6% | −6,8 |
+| **finding bịa** | **0.0%** (0/145) | **5.2%** (4/77) | **+5,2** |
+
+- **H2 KHÔNG kích hoạt** (cần ≥10 điểm, thực tế 6,8) → rơi vùng xám: cổng đóng góp
+  **một phần**, không phải nguyên nhân chính. H5 kích hoạt. H1, H4 đúng.
+- **Sàn nhiễu lớn hơn hiệu ứng.** Chạy lại control thay vì tái dùng X5-flash cho thấy
+  cùng hành vi code lệch **10,7 điểm** precision giữa hai lần chạy (61.1 → 50.4).
+  Hiệu ứng 6,8 < nhiễu 10,7 → **không được tuyên bố**. Ngưỡng H2 đăng ký khi chưa
+  biết sàn nhiễu; giữ nguyên, ghi nhận là lỗi thiết kế của protocol.
+- **Cổng chỉ nổ 7/78 lượt (~9%)** — 5 đội ngược + 2 chặn "chưa read_file". Một cổng
+  nổ 9% không thể là động lực chính của metric.
+- **Trần của cổng có số:** `x6-on/clean-trial-03` nộp 75 finding, **70 cái cùng
+  `auth` trong một file, trên snapshot SẠCH**, và **qua hết** validator vì dòng có
+  thật + evidence khớp. Cổng bảo đảm trích dẫn có thật, KHÔNG bảo đảm finding có nghĩa.
+
+**ĐÍNH CHÍNH — cách nói đúng từ đây:**
+
+| Claim | Trạng thái |
+|---|---|
+| Validator đẩy metric precision lên | ❌ không chứng minh được ở n=3 |
+| Validator đưa trích dẫn bịa về 0 | ✅ đo được cơ học, 5.2% → 0.0% |
+
+> `validate_report` là **bảo đảm tính có thật của trích dẫn**, không phải máy nâng
+> precision. Nó xoá một *lớp lỗi*, không cải thiện *phán đoán*.
+
+Sự cố: arm OFF lần 1 bị giết từ bên ngoài lúc 03:39 → §7 phân loại **hạ tầng, không
+phải dữ liệu**, giữ lại `x6-off-aborted-01` (không chấm), chạy lại. Tổng $3.5629/$8.
+
 ## X5 — Model ladder, harness bất biến (20/08/2026)
 
 Chi tiết: `benchmark/results-x5-model-ladder.md`. Protocol `4f74da5` commit 11:56:10,
@@ -54,8 +90,8 @@ Chi tiết: `benchmark/results-x5-model-ladder.md`. Protocol `4f74da5` commit 11
   DOC-01 là `vua`** — chúng kháng vì đòi phát hiện **SỰ VẮNG MẶT**, một nhánh riêng
   trong failure taxonomy, không phải vì độ khó suy luận.
 
-**Phân rã giả định:** model → recall; harness → precision. Vế sau CHƯA đo được —
-cần ablation tắt `validate_report`. Đây là thí nghiệm rẻ nhất còn lại.
+**Phân rã:** model → recall (đo được). Vế "harness → precision" ĐÃ BỊ X6 tách đôi
+và đính chính — xem mục X6 bên dưới. KHÔNG dùng lại câu cũ.
 
 **Thay đổi code:** `agent.py` `MODEL`/`PRICE` đọc từ env `AUDITOR_MODEL`; hash code
 giống hệt qua mọi arm; model lạ → `KeyError` lúc import (fail fast trên báo cáo tiền).
