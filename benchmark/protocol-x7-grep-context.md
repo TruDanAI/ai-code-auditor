@@ -27,8 +27,17 @@ cạnh những chỗ giống nó.
 0–5 dòng trước/sau mỗi dòng khớp. Dòng khớp đánh dấu `file:line:`, dòng ngữ cảnh
 đánh dấu `file:line-`, số dòng vẫn THẬT nên citation vẫn hợp lệ.
 
-**Không đổi:** model (`gemini-2.5-pro`), `max_steps=10`, số tool (vẫn 3), snapshot,
-gold, checklist, scorer, validator. So sánh trực tiếp với `x5-pro`.
+**Không đổi:** `max_steps=10`, số tool (vẫn 3), snapshot, gold, checklist, scorer,
+validator.
+
+**Model: `gemini-2.5-flash`** — mốc so sánh trực tiếp là **`x5-flash` (45,2%)**.
+
+Sửa ngày 23/08 trước khi chạy, hai lý do:
+1. **Chi phí.** Bản pro tốn ~$9,6–13. Ngân sách dự án đã tiêu >$10, chủ dự án nêu
+   lo ngại trực tiếp. Bản flash tốn ~$1,5–2.
+2. **Thí nghiệm mạnh hơn.** 4 seed mù mù với *mọi* arm, kể cả pro. Nếu
+   **model yếu + tool tốt** vượt được **model mạnh + tool cũ** (x5-pro 54,8%), đó
+   là bằng chứng trực tiếp hơn hẳn rằng trần nằm ở **harness**, không ở model.
 
 ## Giả thuyết đăng ký trước
 
@@ -38,6 +47,7 @@ gold, checklist, scorer, validator. So sánh trực tiếp với `x5-pro`.
 | **H7.2** | recall nhóm `kho` tăng | từ 11% lên ≥ 25% |
 | **H7.3** | tool mở khoá seed mù | ≥1 trong 4 seed bắt được ở ≥2/3 spiked trial |
 | **H7.4** | *phản chứng* — tool đánh đổi chứ không cải thiện | precision giảm > 10 điểm |
+| **H7.5** | *harness thắng model* — flash+context ≥ pro+grep cũ | recall x7 ≥ 54,8% |
 
 **Cỡ hiệu ứng tối thiểu, tính TRƯỚC:** ở n=14 seed, các delta có cặp đã đo có bề
 rộng KTC ~24 điểm, nên chỉ delta **≥ ~12 điểm** mới tách được khỏi 0.
@@ -46,9 +56,13 @@ rộng KTC ~24 điểm, nên chỉ delta **≥ ~12 điểm** mới tách đượ
 
 ## Trần chi
 
-6 trial (3 clean + 3 spiked). Đơn giá x5-pro đo được: $1,665/trial clean,
-$1,521/trial spiked → nền ≈ **$9,6**. `context` làm prompt token tăng, dự phòng
-→ **trần $14. Vượt → dừng, ghi lại, không âm thầm chạy tiếp.**
+6 trial (3 clean + 3 spiked) trên `gemini-2.5-flash`. X5-flash đo được ≈$0,25/trial;
+`context` làm prompt token tăng → dự kiến **$1,5–2,5**.
+
+**Trần $3, cưỡng chế bằng máy chứ không bằng lời hứa:** `benchmark_runner.py` nay có
+`--max-cost-usd`. Trước mỗi trial, nếu tổng đã tiêu vượt trần thì DỪNG, ghi
+`stopped_early.json`, thoát mã 2. Trial đã xong giữ nguyên (trial cắt dở là rác dữ
+liệu — tốn tiền mà không chấm được).
 
 ## Hạn chế phải ghi vào luận văn
 

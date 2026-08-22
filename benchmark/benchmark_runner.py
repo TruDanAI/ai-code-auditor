@@ -223,13 +223,33 @@ def main() -> int:
     write_json(args.output_dir / "run_manifest.json", common_manifest)
 
     manifests = []
+    spent = 0.0
+    stopped_early = None
     for label, trial in schedule:
+        # Chot chi kiem TRUOC moi trial: mot trial da bat dau thi de no chay het,
+        # vi trial cut doi la rac du lieu - ton tien ma khong cham duoc.
+        if args.max_cost_usd is not None and spent >= args.max_cost_usd:
+            stopped_early = (
+                f"DUNG SOM: da tieu ${spent:.4f} >= tran ${args.max_cost_usd:.2f}. "
+                f"Chua chay: {label}-trial-{trial:02d} va cac trial sau."
+            )
+            print("\n" + stopped_early)
+            break
         snapshot = clean if label == "clean" else spiked
-        print(f"\n=== {label.upper()} trial {trial}/{args.trials} ===")
-        manifests.append(
-            run_one_trial(label, trial, snapshot, args.output_dir, items, common_manifest)
-        )
+        print(f"\n=== {label.upper()} trial {trial}/{args.trials} "
+              f"(da tieu ${spent:.4f}) ===")
+        manifest = run_one_trial(label, trial, snapshot, args.output_dir, items, common_manifest)
+        spent += manifest.get("telemetry", {}).get("cost_usd", 0.0)
+        manifests.append(manifest)
+
     write_json(args.output_dir / "completed_runs.json", manifests)
+    print(f"\nTONG CHI: ${spent:.4f}"
+          + (f" / tran ${args.max_cost_usd:.2f}" if args.max_cost_usd is not None else ""))
+    if stopped_early:
+        write_json(args.output_dir / "stopped_early.json",
+                   {"reason": stopped_early, "spent_usd": round(spent, 6),
+                    "completed_trials": len(manifests)})
+        return 2
     return 0
 
 
