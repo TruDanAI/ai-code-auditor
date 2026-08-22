@@ -172,6 +172,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Actually call the configured LLM. Without this flag, perform dry-run only.",
     )
+    parser.add_argument(
+        "--max-cost-usd",
+        type=float,
+        default=None,
+        help="Chot chi cung: truoc moi trial, neu tong da tieu vuot nguong thi DUNG "
+             "va ghi stopped_early.json thay vi am tham chay tiep.",
+    )
     return parser.parse_args()
 
 
