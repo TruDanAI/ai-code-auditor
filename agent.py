@@ -122,8 +122,8 @@ def read_file(filepath: str, start_line: int = 1) -> str:
     return numbered
 
 
-def grep(pattern: str, ext: str = "") -> str:
-    """Tim pattern (regex, khong phan biet hoa thuong) trong file .js/.md/.json.
+def grep(pattern: str, ext: str = "", context: int = 0) -> str:
+    r"""Tim pattern (regex, khong phan biet hoa thuong) trong file .js/.md/.json.
 
     Dung DAU TIEN khi can dinh vi: ten ham, ten bien, thuat toan (vd 'createHmac',
     'aes-256'), chuoi bao mat... Tra ve cac dong khop dang 'file:line: noi_dung'.
@@ -133,6 +133,19 @@ def grep(pattern: str, ext: str = "") -> str:
         ext: loc duoi file, vd '.js'. De trong = tim tat ca. Khi audit CODE,
             NEN dung ext='.js' de ket qua khong bi file tai lieu .md/.json
             chiem cho (tai lieu chi NOI VE code, khong phai code that).
+        context: so dong hien them TRUOC va SAU moi dong khop (0-5, mac dinh 0).
+
+    DUNG context KHI SAN LOI DO *THIEU* THU GI DO. Mot dong khop don le khong noi
+    duoc "cho nay thieu buoc kiem tra" - phai nhin canh cac cho GIONG NO moi thay
+    cai nao lech. Vd:
+      grep('escapeHtml|<td>\$\{', ext='.js', context=1)
+        -> cac o bang deu boc escapeHtml, LOI o cho khong boc.
+      grep('PERMISSIONS\.', ext='.js', context=3)
+        -> thay route nao di voi quyen nao; route GHI ma cam quyen READ = lech.
+      grep('decipher\.', ext='.js', context=5)
+        -> thay update() co di kem final() hay khong.
+    Dong khop danh dau 'file:line:', dong ngu canh danh dau 'file:line-'.
+    CHI duoc trich dan (citation) tu dong that su chung minh loi, du no la dong nao.
 
     MEO QUAN TRONG: mac dinh khop CHUOI CON ('des' khop ca 'design'!).
     Muon khop NGUYEN TU, boc \\b hai dau: vd '\\bdes\\b|\\bmd5\\b'.
@@ -152,6 +165,8 @@ def grep(pattern: str, ext: str = "") -> str:
     # REVIEW-FIX 7/7 #3: chuan hoa ext model truyen - 'js' / 'JS' / '*.js' deu
     # phai hieu la '.js'. Khong chuan hoa: ext='JS' -> 0 file khop -> "No matches"
     # = FALSE NEGATIVE IM LANG (toi nang nhat cua auditor - cung ho voi bug \x08).
+    context = max(0, min(5, int(context or 0)))   # tran cung: context lon lam no output
+
     if ext:
         ext = ext.strip().lower().lstrip("*")
         if not ext.startswith("."):
@@ -172,14 +187,26 @@ def grep(pattern: str, ext: str = "") -> str:
             rel = os.path.relpath(path, CODEBASE_DIR)
             try:
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                    for lineno, line in enumerate(f, start=1):
-                        if rx.search(line):
-                            # TU LAP format 'file:line: noi_dung' -> nguyen lieu citation
-                            by_file.setdefault(rel, []).append(
-                                f"{rel}:{lineno}: {line.strip()[:160]}"
-                            )
+                    lines = f.read().splitlines()
             except OSError:
                 continue
+
+            for lineno, line in enumerate(lines, start=1):
+                if not rx.search(line):
+                    continue
+                if context == 0:
+                    # TU LAP format 'file:line: noi_dung' -> nguyen lieu citation
+                    block = f"{rel}:{lineno}: {line.strip()[:160]}"
+                else:
+                    # Kieu grep -C: ':' = dong khop, '-' = dong ngu canh. Van giu
+                    # so dong THAT o moi dong -> citation tu dong ngu canh cung hop le.
+                    lo = max(1, lineno - context)
+                    hi = min(len(lines), lineno + context)
+                    block = "\n".join(
+                        f"{rel}:{i}{':' if i == lineno else '-'} {lines[i - 1].strip()[:160]}"
+                        for i in range(lo, hi + 1)
+                    )
+                by_file.setdefault(rel, []).append(block)
 
     if not by_file:
         return f"No matches found for '{pattern}'" + (f" (ext={ext})" if ext else "")
@@ -195,12 +222,25 @@ def grep(pattern: str, ext: str = "") -> str:
             extra = f"  [+{len(hits) - 1} khop nua trong file nay]" if len(hits) > 1 else ""
             out_lines.append(hits[0] + extra)
     else:
+        # context>0 lam moi khop no thanh (2*context+1) dong -> giam so khop/file
+        # de tran 100 dong ben duoi khong nuot mat cac file phia sau.
+        # Giu triet ly "phu rong hon dao sau": bot so khop/file, khong bot so
+        # file, va noi tran dong tuong ung vi moi khop nay ra (2*context+1) dong.
+        per_file = 5 if context == 0 else 3
         for rel, hits in by_file.items():
-            out_lines.extend(hits[:5])      # it file -> cho xem sau 5 dong/file
-            if len(hits) > 5:
-                out_lines.append(f"    ... [{rel}: con {len(hits) - 5} dong khop nua]")
-    if len(out_lines) > 100:
-        out_lines = out_lines[:100] + [
+            out_lines.extend(hits[:per_file])
+            if len(hits) > per_file:
+                out_lines.append(f"    ... [{rel}: con {len(hits) - per_file} dong khop nua]")
+    # Dem dong THAT su render (mot block context la nhieu dong), khong dem block.
+    line_budget = 100 if context == 0 else 160
+    rendered = 0
+    for index, block in enumerate(out_lines):
+        rendered += block.count("\n") + 1
+        if rendered > line_budget:
+            out_lines = out_lines[:index]
+            break
+    if rendered > line_budget:
+        out_lines = out_lines + [
             "... [ket qua qua dai bi cat - grep pattern cu the hon hoac them ext='.js']"
         ]
     return "\n".join(out_lines)
