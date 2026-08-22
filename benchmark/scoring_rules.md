@@ -81,6 +81,82 @@ Vì LLM phi tất định: chạy **≥3 lượt/snapshot**, báo **trung bình 
 - Mỗi spiked trial được chấm **riêng**, sau đó mới báo mean + min–max. Không union
   findings từ nhiều trial thành một “super run”.
 
+### Amendment 22/08/2026 — thêm `evidence` vào khoá so khớp baseline
+
+Bản khoá 18/07/2026 giả định **số dòng so sánh được giữa clean và spiked**. Giả định
+này SAI với mutation kiểu **chèn dòng**: mọi dòng bên dưới bị đẩy xuống, nên cùng một
+số dòng ở hai snapshot có thể trỏ vào hai đoạn code khác hẳn nhau.
+
+Ca thật đã bắt được (`SEED-DEP-01`, arm x5-pro):
+
+| snapshot | `package.json:23` | auditor báo |
+|---|---|---|
+| clean | `"multer": "^2.1.1"` | dependency-confusion (2/3 clean trial → baseline ổn định) |
+| spiked | `"lodash": "4.17.15"` | chính lỗi cấy — multer bị đẩy xuống dòng 24 |
+
+Cùng file, cùng category thô `dependency`, khoảng cách dòng **0** → khoá cũ coi là một
+finding và loại mất một phát hiện thật.
+
+**Sửa (đã áp dụng):**
+1. Khoá so `baseline ↔ spiked` = `file + category + line±5` **+ `evidence` đã chuẩn hoá**
+   (gộp khoảng trắng, lowercase). Thiếu `evidence` một bên → rơi về so vị trí, tức
+   **thiên về loại bỏ, không thiên về cho điểm**.
+2. Dựng clean consensus **giữ nguyên** khoá cũ (`file + category + line±5`), vì trong
+   cùng snapshot clean số dòng vốn đã so sánh được.
+3. Thứ tự phân loại trong `score_trial` sửa lại cho đúng bảng ở trên: **loại baseline
+   ổn định TRƯỚC**, rồi mới xét gold. Trước amendment code xét gold trước, nên một
+   finding vừa khớp gold vừa thuộc clean-majority bị chấm TP — trái `TP = chỉ ở spiked`.
+
+**Ảnh hưởng lên số đã công bố** (chấm lại offline, không chạy trial mới, raw trials giữ
+nguyên; kết quả hiệu chỉnh ở `runs/<arm>/score-corrected-20260822.json`, `score.json` cũ
+không xoá):
+
+| | recall in-scope | coverage | precision in-scope |
+|---|---|---|---|
+| baseline-v01 | 26,2% (không đổi) | không đổi | 24,6% (không đổi) |
+| x5-flash | 45,2% (không đổi) | không đổi | 61,1% → **59,3%** |
+| x5-pro | 54,8% (không đổi) | không đổi | 53,8% → **50,1%** |
+| x6-on | 47,6% (không đổi) | không đổi | 50,4% → **49,6%** |
+| x6-off | 42,9% (không đổi) | không đổi | 43,6% → **42,1%** |
+
+Recall và coverage **không đổi ở mọi arm**; chỉ precision/FDR/F1 giảm nhẹ (0,8–2,8 pp)
+vì một số finding trước đây bị gộp nhầm vào baseline nay lộ ra là FP riêng. Hướng của
+cả hai kết luận vẫn giữ: thang model (pro > flash > baseline theo recall) và validator
+ON > OFF (recall +4,8 pp, precision +7,2 pp).
+
+⚠️ Con số 54,8% của x5-pro **trùng nhau trước và sau khi sửa** — KHÔNG được đọc thành
+"vậy là chẳng có gì sai". Có hai lỗi ngược chiều triệt tiêu nhau: thứ tự xét sai làm
+số cao lên, khoá so va chạm làm số thấp xuống. Sửa cả hai thì số mới bền.
+
+Regression test khoá ca này: `test_score_benchmark.py::BaselineBeforeGoldTests`.
+
+### Amendment 23/08/2026 — một quan hệ đồng nhất duy nhất
+
+Bản 22/08 để lại **bất đối xứng**: dựng consensus gom nhóm bằng khoá *lỏng*
+(`file+category+line±5`) nhưng loại trừ lại kiểm bằng khoá *chặt* (thêm `evidence`).
+Hệ quả: một cụm finding khác nhau nằm gần nhau bầu ra **một đại diện**, rồi chính các
+thành viên còn lại của cụm bị đại diện đó từ chối.
+
+Ca thật (arm `sast-deterministic`): ba finding `dependency` trên `package.json` dòng
+16 / 18 / 23 gộp thành một đại diện dòng 18 (`"axios"`). Bốn advisory ở dòng 16 sau đó
+**không khớp evidence của đại diện** → chấm FP oan, dù chúng có mặt ở **cả 3/3** clean
+trial. Precision của arm này bị hạ từ 100% xuống 16,7% hoàn toàn do lỗi chấm.
+
+**Sửa:** `build_clean_consensus` dùng đúng `same_finding` như lúc loại trừ. Một quan hệ
+đồng nhất, dùng ở mọi nơi.
+
+Ảnh hưởng: recall/coverage **không đổi ở mọi arm**; precision đổi nhẹ
+(x5-pro 51,0% → **50,1%**, x6-off 42,4% → **42,1%**, các arm khác giữ nguyên).
+
+Regression test: `test_score_benchmark.py::ConsensusClusterTests`.
+
+**Giới hạn còn lại, ghi nhận chứ chưa sửa:** khoá so khớp ở mức *category*, không ở mức
+*rule*. Nếu clean đã có một rule cùng category nổ trên đúng dòng đó, một rule MỚI ở
+spiked sẽ bị che. Ca thật: `gcm-no-tag-length` nổ ở clean tại `page-credentials.js:53`,
+nên `aead-no-final` (chính là hệ quả của SEED-CRY-01) ở spiked bị loại thành baseline.
+Không thêm `rule_id` vào khoá vì finding của LLM không có rule_id — thêm vào sẽ tạo
+bất đối xứng giữa các arm, đúng loại lỗi mà amendment này vừa xoá.
+
 ## Snapshot giao cho auditor (chống leakage đáp án qua Git)
 Auditor KHÔNG được thấy lịch sử cấy lỗi. Sau khi cấy xong, xuất snapshot **không có `.git`**:
 `git archive spiked | tar -x -C <thư mục audit>` (hoặc copy rồi xoá `.git`). Snapshot đưa auditor:

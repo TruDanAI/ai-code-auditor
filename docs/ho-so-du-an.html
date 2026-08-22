@@ -1,0 +1,429 @@
+<title>Hồ sơ AI Code Auditor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root{
+  --paper:#FFFFFF; --sunk:#F1F5F4; --ground:#E9EDEC;
+  --ink:#13201D; --ink-2:#3A4A46; --ink-3:#63736F;
+  --rule:#CFDAD7; --rule-soft:#E3EAE8;
+  --acc:#0D6455; --acc-soft:#DCEDE8; --acc-ink:#0A4A3F;
+  --warn:#8A5210; --warn-soft:#F7EBDA;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --ground:#141A19; } }
+:root[data-theme="dark"]{ --ground:#141A19; }
+
+*{box-sizing:border-box}
+body{margin:0; background:var(--ground); font-family:"Source Serif 4",Georgia,serif;
+  -webkit-font-smoothing:antialiased}
+.sheet{background:var(--paper); color:var(--ink); max-width:900px; margin:26px auto;
+  padding:54px 62px 66px; box-shadow:0 2px 8px rgba(0,0,0,.10),0 24px 60px -30px rgba(0,0,0,.30);
+  font-size:14.6px; line-height:1.6}
+
+h1,h2,h3,h4,.ui,figcaption,th,.eyebrow{font-family:"IBM Plex Sans",system-ui,sans-serif}
+h1{font-size:31px; font-weight:700; letter-spacing:-.02em; margin:0 0 6px; text-wrap:balance}
+h2{font-size:19px; font-weight:700; margin:0 0 4px; letter-spacing:-.01em; color:var(--ink)}
+h3{font-size:15.4px; font-weight:600; margin:22px 0 6px; color:var(--ink)}
+h4{font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  margin:18px 0 6px; color:var(--acc)}
+p{margin:0 0 12px} li{margin-bottom:5px}
+strong{font-weight:600}
+.eyebrow{font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.lede{font-size:17px; line-height:1.5; color:var(--ink-2); margin:0 0 4px}
+
+.sec{border-top:2px solid var(--ink); padding-top:10px; margin-top:34px}
+.sec-n{font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600; color:var(--acc)}
+
+.spine{display:flex; flex-wrap:wrap; gap:1px; margin:20px 0 4px; background:var(--rule);
+  border:1px solid var(--rule)}
+.spine div{flex:1 1 130px; background:var(--paper); padding:9px 12px}
+.spine .k{display:block; font-family:"IBM Plex Sans",sans-serif; font-size:9.5px;
+  font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px}
+.spine .v{font-family:"IBM Plex Mono",monospace; font-size:15px; font-weight:600; color:var(--acc)}
+
+pre{background:var(--sunk); border:1px solid var(--rule-soft); border-left:3px solid var(--acc);
+  padding:11px 14px; margin:10px 0 14px; overflow-x:auto; border-radius:0 4px 4px 0}
+pre code{font-family:"IBM Plex Mono",monospace; font-size:11.4px; line-height:1.5;
+  color:var(--ink); white-space:pre; background:none; border:none; padding:0}
+code{font-family:"IBM Plex Mono",monospace; font-size:.88em; background:var(--sunk);
+  padding:1px 4px; border-radius:3px}
+.fileref{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3);
+  margin:0 0 2px; font-weight:600}
+
+table{border-collapse:collapse; width:100%; font-family:"IBM Plex Sans",sans-serif;
+  font-size:12.6px; margin:12px 0 16px}
+th,td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--rule-soft); vertical-align:top}
+th{font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3);
+  background:var(--sunk); font-weight:700}
+td.n,th.n{text-align:right; font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+.hi{color:var(--acc); font-weight:600}
+.tbl-scroll{overflow-x:auto}
+
+.why{background:var(--acc-soft); border-left:3px solid var(--acc); padding:11px 15px;
+  margin:12px 0 16px; font-size:13.6px}
+.why b{color:var(--acc-ink)}
+.lim{background:var(--warn-soft); border-left:3px solid var(--warn); padding:11px 15px;
+  margin:12px 0 16px; font-size:13.6px}
+
+figure{margin:16px 0 18px}
+figure svg{display:block; width:100%; height:auto}
+figcaption{font-size:11.6px; color:var(--ink-3); margin-top:8px; line-height:1.5}
+svg .f-acc{fill:var(--acc)} svg .f-accs{fill:var(--acc-soft)} svg .f-acci{fill:var(--acc-ink)}
+svg .f-warn{fill:var(--warn)} svg .s-acc{stroke:var(--acc)} svg .s-warn{stroke:var(--warn)}
+
+@media print{
+  @page{ size:A4; margin:14mm 15mm; }
+  body{background:#FFF}
+  .sheet{max-width:none; margin:0; padding:0; box-shadow:none; font-size:9.9pt; line-height:1.5}
+  h1{font-size:20pt} h2{font-size:13pt} h3{font-size:11pt} h4{font-size:8.4pt}
+  pre code{font-size:7.9pt; line-height:1.42}
+  table{font-size:8.4pt} th{font-size:7.2pt}
+  .lede{font-size:11.4pt}
+  .sec{page-break-before:always; page-break-after:avoid}
+  .sec:first-of-type{page-break-before:avoid}
+  h3,h4{page-break-after:avoid} pre,table,figure,.why,.lim{page-break-inside:avoid}
+}
+</style>
+
+<div class="sheet">
+
+<p class="eyebrow">Hồ sơ kỹ thuật · 21/08/2026</p>
+<h1>AI Code Auditor</h1>
+<p class="lede">Một agent tìm lỗi trong codebase — và một cây thước để đo xem nó, hay bất kỳ agent nào khác, tìm được bao nhiêu.</p>
+
+<div class="spine">
+  <div><span class="k">Lỗi cấy</span><span class="v">15</span></div>
+  <div><span class="k">Lượt/arm</span><span class="v">3+3</span></div>
+  <div><span class="k">Dễ/vừa/khó</span><span class="v">100/47/39</span></div>
+  <div><span class="k">Tự viết · Claude</span><span class="v">54.8 · 57.1</span></div>
+  <div><span class="k">Nhiễu &gt; hiệu ứng</span><span class="v">11 &gt; 6.8</span></div>
+</div>
+
+<!-- ================= 1 ================= -->
+<div class="sec"><span class="sec-n">01</span><h2>Bài toán</h2></div>
+
+<p>Mọi công cụ AI đều hứa “tìm bug trong code của bạn”. Không công cụ nào nói <strong>bắt được bao nhiêu phần trăm</strong> và <strong>trượt loại lỗi nào</strong>. Không đo được vì thiếu đúng một thứ: <strong>đáp án biết trước</strong>.</p>
+
+<p>Chạy agent trên một repo bất kỳ rồi đếm findings thì không biết cái nào đúng, và tuyệt nhiên không biết nó đã <em>bỏ sót</em> gì.</p>
+
+<div class="why"><b>Giải pháp:</b> tự cấy 15 lỗi vào một repo thật — mỗi lỗi một commit, message nguỵ trang để lịch sử git không lộ đáp án. Giờ có đáp án. Giờ đo được.</div>
+
+<p>Repo được chọn là chatbot bán hàng Messenger từng chạy thật cho khách. Các lỗi cấy không bịa: <code>REL-01</code> (gửi trùng tin nhắn do webhook redelivery), <code>ERR-01</code> (Graph API 10/551), <code>CFG-01</code> (env sai khi deploy) — <strong>đều là sự cố sản xuất đã xảy ra</strong>.</p>
+
+<!-- ================= 2 ================= -->
+<div class="sec"><span class="sec-n">02</span><h2>Kiến trúc tổng thể</h2></div>
+
+<figure>
+<svg viewBox="0 0 880 250" role="img" aria-label="Sơ đồ: checklist 13 mục vào audit.py, mỗi mục mở một phiên agent mới; agent dùng ba tool đọc codebase trong tối đa 10 bước rồi nộp qua cổng validate_report; cổng từ chối thì đội ngược, qua thì ghi ra jsonl và báo cáo.">
+<defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="currentColor"/></marker>
+<marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" class="f-warn"/></marker></defs>
+<g font-family="IBM Plex Sans, sans-serif" fill="currentColor">
+  <rect x="8" y="88" width="118" height="52" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+  <text x="67" y="110" text-anchor="middle" font-size="11.5" font-weight="600">checklist</text>
+  <text x="67" y="126" text-anchor="middle" font-size="10" opacity=".7">13 mục</text>
+  <line x1="126" y1="114" x2="168" y2="114" stroke="currentColor" stroke-width="1.4" marker-end="url(#a1)"/>
+
+  <rect x="170" y="20" width="420" height="212" rx="8" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="5 4" opacity=".45"/>
+  <text x="182" y="38" font-size="10.5" font-weight="600" opacity=".7">audit.py — mỗi mục MỘT phiên tươi</text>
+
+  <rect x="190" y="56" width="168" height="98" rx="7" class="f-accs s-acc" stroke-width="1.5"/>
+  <text x="274" y="80" text-anchor="middle" font-size="12" font-weight="700" class="f-acci">agent.py</text>
+  <text x="274" y="97" text-anchor="middle" font-size="10.5" class="f-acci">ReAct · ≤10 bước</text>
+  <line x1="206" y1="108" x2="342" y2="108" class="s-acc" stroke-width="1" opacity=".4"/>
+  <text x="274" y="125" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace" class="f-acci">grep · read_file</text>
+  <text x="274" y="141" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace" class="f-acci">list_files</text>
+
+  <rect x="190" y="180" width="168" height="42" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+  <text x="274" y="206" text-anchor="middle" font-size="11" font-weight="600">codebase (chỉ đọc)</text>
+  <line x1="256" y1="154" x2="256" y2="178" stroke="currentColor" stroke-width="1.3" marker-end="url(#a1)"/>
+  <line x1="296" y1="178" x2="296" y2="156" stroke="currentColor" stroke-width="1.3" marker-end="url(#a1)"/>
+
+  <line x1="358" y1="100" x2="400" y2="100" stroke="currentColor" stroke-width="1.4" marker-end="url(#a1)"/>
+  <rect x="402" y="62" width="172" height="88" rx="7" fill="none" class="s-warn" stroke-width="1.9"/>
+  <text x="488" y="84" text-anchor="middle" font-size="11.5" font-weight="700" class="f-warn">validate_report</text>
+  <text x="488" y="100" text-anchor="middle" font-size="9.6" class="f-warn" opacity=".9">CỔNG TẤT ĐỊNH</text>
+  <text x="488" y="118" text-anchor="middle" font-size="9.6">file? dòng? evidence</text>
+  <text x="488" y="132" text-anchor="middle" font-size="9.6">khớp NGUYÊN VĂN?</text>
+  <text x="488" y="146" text-anchor="middle" font-size="9.6" opacity=".7">lối ra DUY NHẤT</text>
+
+  <path d="M402 138 C 372 178, 310 182, 286 162" fill="none" class="s-warn" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#a2)"/>
+  <text x="344" y="192" text-anchor="middle" font-size="9.6" class="f-warn" font-weight="600">từ chối → đội ngược (≤2×)</text>
+
+  <line x1="574" y1="100" x2="614" y2="100" class="s-acc" stroke-width="1.7" marker-end="url(#a1)"/>
+  <rect x="616" y="62" width="160" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+  <text x="696" y="82" text-anchor="middle" font-size="10.5" font-weight="600" font-family="IBM Plex Mono, monospace">audit_results</text>
+  <text x="696" y="97" text-anchor="middle" font-size="9.6" opacity=".7">.jsonl · ghi ngay từng mục</text>
+  <line x1="696" y1="106" x2="696" y2="136" stroke="currentColor" stroke-width="1.4" marker-end="url(#a1)"/>
+  <rect x="616" y="138" width="160" height="44" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+  <text x="696" y="158" text-anchor="middle" font-size="10.5" font-weight="600" font-family="IBM Plex Mono, monospace">audit_report.md</text>
+  <text x="696" y="173" text-anchor="middle" font-size="9.6" opacity=".7">cho người đọc</text>
+  <text x="616" y="212" font-size="9.6" opacity=".7">≈ 99 lời gọi LLM / lượt audit</text>
+</g></svg>
+<figcaption><b>Điểm đắt giá về kiến trúc là cái cổng.</b> LLM không được tự tuyên bố kết quả — mọi finding phải trỏ vào file có thật, dòng có thật, trích dẫn khớp nguyên văn. Không framework, không embedding, không retrieval.</figcaption>
+</figure>
+
+<!-- ================= 3 ================= -->
+<div class="sec"><span class="sec-n">03</span><h2>Thành phần và code</h2></div>
+
+<h3>3.1 · <code>audit.py</code> — người điều phối</h3>
+<p class="fileref">audit.py:31</p>
+<pre><code>def build_question(item: dict) -> str:
+    return (
+        f"[MUC AUDIT {item['id']} | category='{item['category']}' | "
+        f"severity goi y: {item['severity_hint']}]\n"
+        f"{item['question']}\n"
+        f"BAT BUOC: moi finding cua muc nay dien category='{item['category']}'."
+    )</code></pre>
+<div class="why"><b>Vì sao ép category?</b> Chấm điểm dựa trên khớp <em>category</em> giữa lỗi-cấy và finding. Không ép thì model tự chế “security”/“chung chung” và phép chấm category thành vô nghĩa. Hai bên phải cùng khung.</div>
+
+<p class="fileref">audit.py:48 — vòng lặp batch</p>
+<pre><code>for i, item in enumerate(items, 1):
+    record = {"batch_id": batch_id, "id": item["id"], "status": None}
+    try:
+        report_str, totals = agent.run_agent(
+            build_question(item),
+            run_id=f"{batch_id}/{item['id']}",   # group chi phi theo MUC
+        )
+        record["cost_usd"] = round(totals["cost_usd"], 6)  # ghi tien TRUOC khi parse
+        record["report"]   = json.loads(report_str)
+        record["status"]   = "ok"
+    except json.JSONDecodeError:
+        record["status"] = "no_report"          # cu chot khong ra JSON
+    except Exception as e:
+        record["status"] = "error"              # AO GIAP: 429/503 khong keo chet batch
+        record["error"]  = f"{type(e).__name__}: {e}"
+
+    with open(RESULTS_FILE, "a", encoding="utf-8") as f:   # ghi NGAY tung muc
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")</code></pre>
+<div class="why"><b>Ba quyết định nằm trong 15 dòng này.</b> (1) <em>Mỗi mục một phiên tươi</em> → 13 phép đo độc lập, mục 7 không bị nhiễu bởi mục 3. (2) <em>Ghi tiền trước khi parse</em> → parse hỏng thì số tiền của mục vẫn còn. (3) <em>Error-as-data</em> → một mục chết không được im lặng biến cả batch thành “không có lỗi nào”.</div>
+
+<h3>3.2 · Cấu hình — arm là biến môi trường</h3>
+<p class="fileref">agent.py:27</p>
+<pre><code>MODEL = os.environ.get("AUDITOR_MODEL", "gemini-2.5-flash-lite")
+
+PRICES = {                                    # USD / 1 TRIEU token
+    "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
+    "gemini-2.5-flash":      {"input": 0.30, "output": 2.50},
+    "gemini-2.5-pro":        {"input": 1.25, "output": 10.00},
+}
+PRICE = PRICES[MODEL]          # model la -> KeyError NGAY luc import
+
+NO_VALIDATOR = os.environ.get("AUDITOR_NO_VALIDATOR") == "1"</code></pre>
+<div class="why"><b>Vì sao đọc từ env chứ không sửa code?</b> Vì <code>hash(agent.py)</code> phải <strong>giống hệt nhau ở mọi arm</strong> — arm chỉ khác ở config được ghi vào manifest. Đổi code giữa các arm là so hai binary khác nhau. Và model lạ thì nổ ngay lúc import, không để chạy xong rồi mới phát hiện số tiền là bịa.</div>
+
+<h3>3.3 · Ba tool</h3>
+<p><code>grep</code> · <code>read_file</code> · <code>list_files</code> — ba hàm Python thường. SDK đọc <strong>docstring</strong> để tự sinh JSON schema, nên docstring ở đây <strong>là prompt</strong>, không phải ghi chú.</p>
+<div class="why"><b>Vì sao không embedding/vector search?</b> Bug không nằm ở chỗ “giống câu hỏi về mặt ngữ nghĩa”. <code>grep 'createHmac'</code> ra chính xác 100%; embedding chỉ ra thứ na ná. Đã đo: <code>#1234</code> vs <code>#5678</code> ≈ <strong>0.98 cosine</strong> — embedding mù với định danh chính xác.</div>
+
+<h3>3.4 · Vòng lặp ReAct</h3>
+<p class="fileref">agent.py:556 — rút gọn</p>
+<pre><code>contents = [types.Content(role="user", parts=[types.Part(text=question)])]
+tools_called = set()
+
+for step in range(1, max_steps + 1):
+    response = call_llm(contents, config, step, "loop", totals)
+
+    if not response.function_calls:        # model muon ket thuc bang text
+        ... doi nguoc toi da MAX_REJECTIONS lan, roi ep cu chot ...
+        continue
+
+    contents.append(response.candidates[0].content)   # ghi QUYET DINH truoc
+    response_parts = []
+    for fc in response.function_calls:
+        tools_called.add(fc.name)
+
+        if fc.name == "submit_findings":
+            error = validate_report(dict(fc.args), tools_called)
+            if error:                                  # KHONG return
+                response_parts.append(types.Part.from_function_response(
+                    name=fc.name, response={"result": error}))
+                continue                               # -> model sua roi nop lai
+            return json.dumps(dict(fc.args), ensure_ascii=False, indent=2)
+
+        observation = TOOLS[fc.name](**dict(fc.args))
+        response_parts.append(types.Part.from_function_response(
+            name=fc.name, response={"result": observation}))
+
+    contents.append(types.Content(role="user", parts=response_parts))</code></pre>
+<div class="why"><b>ReAct = Reasoning + Acting.</b> Đúng vòng lặp con người làm khi đọc code lạ: <em>nghĩ → grep → đọc → nghĩ → mở file → đọc → kết luận</em>. Chỉ thay bước “nghĩ” bằng LLM. <code>MAX_STEPS = 10</code> đến từ quan sát, không từ cảm tính: ban đầu 6, đo thấy guardrail ăn ~1 bước và điều tra bù mất 2–3 bước nữa nên 6 chết non giữa chừng.</div>
+
+<h3>3.5 · <code>validate_report</code> — cái cổng</h3>
+<p class="fileref">agent.py:345</p>
+<pre><code>def validate_report(args: dict, tools_called: set) -> str:
+    if NO_VALIDATOR:                       # arm ablation X6
+        return ""
+    if "read_file" not in tools_called:    # chua doc code thi cam ket luan
+        return "TU CHOI: ban chua read_file file nao..."
+
+    problems = []
+    for i, f in enumerate(args.get("findings", [])):
+        rel  = str(f.get("file", ""))
+        path = os.path.join(CODEBASE_DIR, rel)
+        if not os.path.isfile(path):                    # 1. file co that?
+            problems.append(f"...file khong ton tai"); continue
+
+        lines = open(path, encoding="utf-8", errors="ignore").read().splitlines()
+        line_no = int(f.get("line", 0))
+        if not (1 &lt;= line_no &lt;= len(lines)):            # 2. dong co that?
+            problems.append(f"...file chi co {len(lines)} dong"); continue
+
+        first  = (str(f.get("evidence", "")).splitlines() or [""])[0]
+        ev     = " ".join(first.split())                # chuan hoa khoang trang
+        actual = " ".join(lines[line_no - 1].split())
+        if not ev or ev not in actual:                  # 3. khop NGUYEN VAN?
+            problems.append("...evidence KHONG khop noi dung that cua dong")
+
+        if f.get("evidence_type") == "code" and rel.endswith(".md"):
+            problems.append("...file .md ma khai evidence_type='code'")   # 4.
+
+    return ("TU CHOI bao cao - sua roi nop lai:\n" + "\n".join(problems[:10])
+            if problems else "")</code></pre>
+<div class="why"><b>Nguyên tắc trung tâm của cả dự án:</b> <em>luật nào kiểm được bằng code thì không nhờ prompt giữ.</em> Ban đầu luật này nằm trong prompt (“hãy trích dẫn chính xác”) — model quên. Chuyển xuống code thì nó <strong>không thể quên</strong>, vì code chặn chứ không khuyên.</div>
+<div class="lim"><b>Giới hạn đã đo:</b> cổng chỉ kiểm được <strong>hình thức</strong>. Một lượt chạy nộp 75 finding, trong đó <strong>70 cái cùng loại trong một file, trên bản SẠCH</strong> — và qua hết, vì mỗi dòng có thật và mỗi trích dẫn khớp. Cổng bảo đảm <em>trích dẫn có thật</em>; không bảo đảm <em>finding có nghĩa</em>.</div>
+
+<h3>3.6 · Đo chi phí — trạm cân một cửa</h3>
+<p class="fileref">agent.py:460</p>
+<pre><code>usage           = response.usage_metadata
+prompt_tokens   = (usage.prompt_token_count     or 0) if usage else 0
+output_tokens   = (usage.candidates_token_count or 0) if usage else 0
+thoughts_tokens = (usage.thoughts_token_count   or 0) if usage else 0
+
+cost_usd = (prompt_tokens  * PRICE["input"]
+          + (output_tokens + thoughts_tokens) * PRICE["output"]) / 1_000_000</code></pre>
+<div class="why"><b>Hai chi tiết dễ sai.</b> (1) <code>thoughts_tokens</code> tính giá <em>output</em> — model “viết ra để suy nghĩ” vẫn là sinh token; bỏ sót thì báo cáo sai tiền với model thinking. (2) SDK trả <code>None</code> chứ không phải <code>0</code> cho field vắng mặt, nên phải <code>or 0</code> từng field, không thì cộng tiền là <code>TypeError</code> giữa phiên.</div>
+
+<!-- ================= 4 ================= -->
+<div class="sec"><span class="sec-n">04</span><h2>Cỗ máy đo</h2></div>
+
+<p>Phần trên là cái auditor. Phần này là thứ khiến nó khác một script cuối tuần.</p>
+
+<pre><code>repo that -> cay 15 loi (moi loi 1 commit, message nguy trang)
+          -> 2 ban: SACH va BAN (khong .git, khong benchmark/, khong gold)
+          -> chay agent 3 luot moi ban, XEN KE
+          -> finding xuat hien o >=2/3 luot SACH = nhieu nen -> TRU DI
+          -> phan con lai doi chieu dap an vang (file + dong +-5 + loai)
+          -> recall / precision / FDR</code></pre>
+
+<h3>4.1 · Luật khớp</h3>
+<p class="fileref">benchmark/score_benchmark.py:63</p>
+<pre><code>LINE_TOLERANCE = 5
+
+def same_location_and_category(left: dict, right: dict) -> bool:
+    if left["file"] != right["file"] or left["category"] != right["category"]:
+        return False
+    if left["line"] is None or right["line"] is None:
+        return False
+    return abs(left["line"] - right["line"]) &lt;= LINE_TOLERANCE</code></pre>
+<div class="why"><b>Vì sao ±5 dòng?</b> Agent trỏ dòng 270 trong khi lỗi ở 268 thì vẫn là tìm ra — bắt đúng tuyệt đối là đo trí nhớ số học, không đo năng lực tìm lỗi. Nhưng ±50 thì thành cho không.</div>
+
+<h3>4.2 · Phép trừ — trái tim của phép đo</h3>
+<p class="fileref">benchmark/score_benchmark.py:86</p>
+<pre><code>def build_clean_consensus(clean_trials: list[list[dict]]) -> list[dict]:
+    """Findings xuat hien o DA SO TUYET DOI cac luot sach = nhieu nen."""
+    if len(clean_trials) &lt; 3:
+        raise ValueError("Can it nhat 3 clean trials de tao majority baseline.")
+    threshold = len(clean_trials) // 2 + 1        # 3 luot -> can >= 2
+
+    consensus = []
+    for candidate in candidates:
+        present = sum(1 for trial in clean_trials
+                        if any(same_location_and_category(candidate, item)
+                               for item in trial))
+        if present &gt;= threshold:
+            consensus.append(candidate)
+    return consensus</code></pre>
+<div class="why"><b>Bằng chứng vì sao bước này bắt buộc.</b> <code>session.js:169</code> là chỗ có lỗi cấy thật (<code>SEED-AUTH-02</code>). Agent flag đúng dòng đó → nhìn qua tưởng nó giỏi. Nhưng nó <strong>cũng flag đúng dòng đó trên bản SẠCH</strong> — tức là nó không phát hiện gì, nó đoán “code auth trông đáng ngờ”. Differential chấm là <strong>MISS</strong>, không cho ăn điểm may. <em>Không có bản sạch, dự án đã tự tin báo cáo một phát hiện không hề tồn tại.</em></div>
+<p><strong>Vì sao đa số tuyệt đối, không phải “xuất hiện một lần”?</strong> Ngưỡng đa số chống được cơn “xả” — một lượt nộp 70 finding rác không đủ để chúng vào sàn nhiễu, nên chúng không làm hỏng phép trừ của các lượt khác.</p>
+
+<h3>4.3 · Truy nguyên — manifest băm mọi thứ</h3>
+<p class="fileref">benchmark/benchmark_runner.py:196</p>
+<pre><code>common_manifest = {
+    "model":             agent.MODEL,
+    "max_steps":         agent.MAX_STEPS,
+    "validator_enabled": not agent.NO_VALIDATOR,
+    "agent_sha256":      sha256_file(PROJECT_ROOT / "agent.py"),
+    "audit_sha256":      sha256_file(PROJECT_ROOT / "audit.py"),
+    "checklist_sha256":  sha256_file(checklist_path),
+    "snapshots":         snapshots,      # sha256 ca hai ban
+    "schedule":          [...],          # xen ke clean/spiked
+}</code></pre>
+<div class="why"><b>Vì sao băm code và snapshot?</b> Ba tháng sau, câu hỏi “con số này chạy trên phiên bản nào” phải trả lời được bằng máy, không bằng trí nhớ. Và mặc định runner là <strong>dry-run</strong> — phải thêm <code>--execute</code> mới gọi LLM, nên không bao giờ lỡ tay đốt tiền.</div>
+
+<!-- ================= 5 ================= -->
+<div class="sec"><span class="sec-n">05</span><h2>Kết quả đo</h2></div>
+
+<div class="tbl-scroll">
+<table>
+<thead><tr><th>Metric</th><th class="n">lite</th><th class="n">flash</th><th class="n">pro</th><th class="n">Claude Code</th></tr></thead>
+<tbody>
+<tr><td>In-scope recall</td><td class="n">26.2%</td><td class="n">45.2%</td><td class="n hi">54.8%</td><td class="n">57.1%</td></tr>
+<tr><td>In-scope precision</td><td class="n">24.6%</td><td class="n hi">61.1%</td><td class="n">53.8%</td><td class="n">52.4%</td></tr>
+<tr><td>FDR (nhiễu)</td><td class="n">75.4%</td><td class="n hi">38.9%</td><td class="n">46.2%</td><td class="n">47.6%</td></tr>
+<tr><td>F1</td><td class="n">24.2%</td><td class="n">51.4%</td><td class="n">53.3%</td><td class="n">54.6%</td></tr>
+<tr><td>$ / lượt audit</td><td class="n">$0.08</td><td class="n">$0.26</td><td class="n">$1.59</td><td class="n">$6.43</td></tr>
+<tr><td>Recall / đô</td><td class="n hi">328 %/$</td><td class="n">174 %/$</td><td class="n">34 %/$</td><td class="n">8.9 %/$</td></tr>
+</tbody></table>
+</div>
+
+<h4>Bốn phát hiện</h4>
+<ol>
+<li><strong>Gradient độ khó chưa từng đảo</strong> ở bất kỳ arm nào: <code>de</code> 100% → <code>vua</code> 47% → <code>kho</code> 39%. Agent bắt tốt lỗi grep ra được, sụp ở lỗi ngữ nghĩa liên thủ tục. Đây là kết luận về <em>bài toán</em>, không về một model.</li>
+<li><strong>Harness ba tool đạt ngang agent thương mại</strong> — cách 2,3 điểm ở 1/4 chi phí, và bắt được <code>SEED-REL-01</code> mà Claude Code trượt cả 3 lượt (union 9/14 vs 8/14).</li>
+<li><strong>Precision đạt đỉnh ở model tầm trung</strong> (61.1%) rồi tụt ở model mạnh nhất (53.8%). Model mạnh hơn tìm được nhiều hơn <em>nhưng ồn hơn</em>. Không đơn điệu.</li>
+<li><strong>Năm lỗi không arm nào bắt được.</strong> Hai trong số đó gắn nhãn <code>vua</code> chứ không phải <code>kho</code> — chúng kháng vì đòi <em>phát hiện sự vắng mặt</em> (thứ lẽ ra phải có mà không có). Một nhánh riêng trong bảng phân loại thất bại.</li>
+</ol>
+
+<h4>Thí nghiệm tự bác bỏ (X6)</h4>
+<p>Dự án từng tuyên bố “harness quyết định precision”, kèm lời tự nhận là chưa có bằng chứng. Thí nghiệm kiểm nó: tắt cổng, giữ nguyên mọi thứ khác. Ngưỡng đăng ký <strong>trước khi chạy</strong>: tụt ≥10 điểm thì claim thành đo được.</p>
+<div class="lim"><b>Kết quả:</b> hiệu ứng <strong>6,8 điểm</strong> — nhưng lượt đối chứng chạy lại cho thấy hai lần chạy của <em>cùng một hành vi code</em> lệch <strong>10,7 điểm</strong> precision. <strong>Hiệu ứng nằm trong dải nhiễu → không được tuyên bố.</strong> Ngưỡng không sửa sau khi thấy dữ liệu; claim bị rút xuống.</div>
+<p>Phép đo duy nhất sạch nhiễu là phép đếm cơ học: tỉ lệ finding trỏ vào thứ không tồn tại đi từ <strong>5.2% (tắt cổng)</strong> về <strong>0.0% (bật cổng)</strong>. Cách nói đúng từ đó: <em>cổng là bảo đảm về tính có thật của trích dẫn, không phải máy nâng precision.</em></p>
+
+<!-- ================= 6 ================= -->
+<div class="sec"><span class="sec-n">06</span><h2>Ứng dụng được vào đâu</h2></div>
+
+<p>Cái auditor thì không — nó thua Claude Code và không nên bán. <strong>Cái chuyển đi được là bộ máy đo.</strong> Nó áp được vào bất kỳ hệ AI nào <em>phun ra cảnh báo</em>:</p>
+
+<div class="tbl-scroll">
+<table>
+<thead><tr><th>Miền</th><th>“Lỗi cấy” tương ứng</th><th>Recall đổi thành</th></tr></thead>
+<tbody>
+<tr><td><strong>Agent governance / tool gateway</strong></td><td>kịch bản agent thử vượt quyền</td><td>violation-catch rate; FDR → tỉ lệ chặn oan</td></tr>
+<tr><td>Trích xuất tài liệu (hoá đơn, hợp đồng)</td><td>field bị sửa/xoá trong bản scan</td><td>field-level recall, severity-weighted miss</td></tr>
+<tr><td>Chấm gian lận / rủi ro</td><td>giao dịch bất thường cấy vào</td><td>detection rate ở tỉ lệ báo động cho trước</td></tr>
+<tr><td>Kiểm duyệt nội dung</td><td>mẫu vi phạm cấy vào luồng sạch</td><td>recall theo loại vi phạm</td></tr>
+<tr><td>RAG / tìm kiếm nội bộ</td><td>golden chunk cho mỗi câu hỏi</td><td>precision@k, citation đúng</td></tr>
+</tbody></table>
+</div>
+
+<div class="why"><b>Ba thứ chuyển nguyên vẹn, không phải viết lại:</b> (1) <em>golden set</em> — đáp án biết trước; (2) <em>differential sạch-vs-bẩn</em> — chạy trên luồng không có gì bất thường để đo sàn nhiễu rồi trừ đi; (3) <em>đăng ký giả thuyết trước khi chạy</em> kèm luật bác bỏ. Ba thứ này không phụ thuộc miền.</div>
+
+<p>Và một chi tiết thị trường: cây thước độc lập thì <strong>thị trường ở Việt Nam mỏng</strong> — đừng bán nó như sản phẩm riêng. Giá trị của nó là (a) bằng chứng năng lực, (b) bộ máy dùng lại cho câu hỏi kế tiếp: <em>agent có ở trong quyền của nó không?</em></p>
+
+<!-- ================= 7 ================= -->
+<div class="sec"><span class="sec-n">07</span><h2>Hạn chế</h2></div>
+
+<p>Tất cả những điều dưới đây là <strong>đã kiểm chứng</strong>, không phải khiêm tốn xã giao. Nói chúng ra <em>trước</em> khi bị hỏi.</p>
+
+<div class="tbl-scroll">
+<table>
+<thead><tr><th>Hạn chế</th><th>Cụ thể</th></tr></thead>
+<tbody>
+<tr><td><strong>Mẫu quá nhỏ</strong></td><td>15 seed, 1 repo, 3 lượt/arm. Đủ thấy gradient ổn định, <em>không</em> đủ cho khoảng tin cậy chặt.</td></tr>
+<tr><td><strong>Seed do chính tác giả viết</strong></td><td>Có thể thiên vị. Phòng thủ: cùng bộ lỗi, cùng luật chấm cho cả agent tự viết lẫn agent thương mại — nếu thiên vị thì thiên vị đều, nên phần <em>so sánh</em> vẫn đứng; phần <em>số tuyệt đối</em> thì không khái quát ra ngoài repo này.</td></tr>
+<tr><td><strong>Nhãn độ khó là phán đoán</strong></td><td>Không có rubric độc lập.</td></tr>
+<tr><td><strong>Sàn nhiễu &gt; hiệu ứng</strong></td><td>Precision ở n=3 có ~11 điểm nhiễu giữa các lần chạy. Mọi so sánh precision chênh dưới 11 điểm <strong>không kết luận được</strong>.</td></tr>
+<tr><td><strong>X4 không phải so sánh có kiểm soát</strong></td><td>Claude Code khác cả model, tool set lẫn ngân sách. Chỉ X5 cô lập được biến model.</td></tr>
+<tr><td><strong>57.1% là SÀN của Claude Code</strong></td><td>Nó bị bó còn 3 tool đọc, không Bash, không subagent, trần $0.80/mục. Kết quả <code>kho</code> có thể là hiện vật của ràng buộc.</td></tr>
+<tr><td><strong>Lỗ hổng trong chính checklist</strong></td><td><code>INP-02</code> (stored XSS ở <code>views.js</code>) không arm nào bắt vì <strong>checklist chỉ trỏ vào <code>webhook.js</code></strong>. Không sửa — sửa checklist là phá tính so sánh với mọi run cũ.</td></tr>
+<tr><td><strong>Baseline sắp hết tái lập</strong></td><td><code>gemini-2.5-flash-lite</code> bị khai tử <strong>16/10/2026</strong>. Sau ngày đó, 26.2% là dữ liệu lịch sử, không phải thí nghiệm chạy lại được.</td></tr>
+<tr><td><strong>Cổng chỉ kiểm hình thức</strong></td><td>70 finding rác trên bản sạch vẫn qua được vì trích dẫn đều có thật.</td></tr>
+<tr><td><strong>Vấn đề quy trình đã ghi nhận</strong></td><td>Protocol X4 soạn trước nhưng commit sau — git không chứng minh được thứ tự. Từ X5 trở đi đã sửa: commit protocol trước trial đầu tiên.</td></tr>
+</tbody></table>
+</div>
+
+<p style="margin-top:20px; font-size:12.6px; color:var(--ink-3); font-family:'IBM Plex Sans',sans-serif">
+Nguồn số: <code>benchmark/results-baseline-v01.md</code> · <code>results-x4-commercial-v01.md</code> · <code>results-x5-model-ladder.md</code> · <code>results-x6-validator-ablation.md</code>. Mọi protocol từ X5 được commit trước lượt chạy đầu tiên; scorer và đáp án vàng không sửa giữa các arm.
+</p>
+
+</div>

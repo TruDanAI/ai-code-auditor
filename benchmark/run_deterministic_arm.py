@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -45,7 +46,16 @@ FALLBACK_CATEGORY = "config"  # unmapped CWE: park it, never guess into a gold c
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> str:
-    done = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, shell=False)
+    # Windows ships npm as npm.cmd; under Git Bash `which npm` finds the POSIX
+    # shim instead, which CreateProcess rejects with WinError 193. Try the real
+    # Windows entry points first.
+    exe = next(
+        (found for suffix in (".cmd", ".exe", "") if (found := shutil.which(cmd[0] + suffix))),
+        None,
+    )
+    if exe is None:
+        raise FileNotFoundError(f"khong tim thay `{cmd[0]}` trong PATH")
+    done = subprocess.run([exe, *cmd[1:]], cwd=cwd, capture_output=True, text=True, shell=False)
     return done.stdout
 
 
@@ -55,6 +65,15 @@ def cwe_of(result: dict) -> str:
         return ""
     first = entries[0] if isinstance(entries, list) else entries
     return str(first).split(":")[0].replace("CWE-", "").strip()
+
+
+def source_line(path: Path, line: int) -> str:
+    """Real source text. semgrep's `extra.lines` is "requires login" for Pro rules."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return lines[line - 1].strip() if 1 <= line <= len(lines) else ""
 
 
 def semgrep_findings(snapshot: Path) -> list[dict]:
@@ -70,7 +89,7 @@ def semgrep_findings(snapshot: Path) -> list[dict]:
             "file": rel,
             "line": item["start"]["line"],
             "category": CWE_CATEGORY.get(cwe_of(item), FALLBACK_CATEGORY),
-            "evidence": (item["extra"].get("lines") or "").strip(),
+            "evidence": source_line(Path(item["path"]), item["start"]["line"]),
             "severity": item["extra"].get("severity", "").lower(),
             "explanation": item["extra"].get("message", "").strip(),
             "source": f"semgrep:{item['check_id'].split('.')[-1]}",

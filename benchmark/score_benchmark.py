@@ -25,6 +25,11 @@ def normalize_category(value: str) -> str:
     return str(value or "").strip().lower()
 
 
+def normalize_evidence(value: str) -> str:
+    """Collapse whitespace so the same quoted line matches across trials."""
+    return " ".join(str(value or "").split()).lower()
+
+
 def finding_shape(raw: dict) -> dict:
     """Keep only scorer fields and make malformed values explicit, not magical."""
     line = raw.get("line")
@@ -36,6 +41,7 @@ def finding_shape(raw: dict) -> dict:
         "file": normalize_path(raw.get("file", "")),
         "line": line,
         "category": normalize_category(raw.get("category", "")),
+        "evidence": normalize_evidence(raw.get("evidence", "")),
         "raw": raw,
     }
 
@@ -68,6 +74,24 @@ def same_location_and_category(left: dict, right: dict) -> bool:
     return abs(left["line"] - right["line"]) <= LINE_TOLERANCE
 
 
+def same_finding(left: dict, right: dict) -> bool:
+    """Same finding across snapshots - location alone is not enough.
+
+    Amendment 22/08/2026: an insertion mutation shifts every line below it, so
+    file+category+line-tolerance alone can collide two DIFFERENT findings. Real
+    case: clean flags `"multer": "^2.1.1"` at package.json:23 while the seeded
+    `"lodash": "4.17.15"` lands on that same line 23 and pushes multer to 24 -
+    same file, same coarse `dependency` category, line delta 0. Comparing the
+    quoted evidence separates them. Missing evidence on either side falls back
+    to location-only, which suppresses rather than credits (conservative).
+    """
+    if not same_location_and_category(left, right):
+        return False
+    if not left["evidence"] or not right["evidence"]:
+        return True
+    return left["evidence"] == right["evidence"]
+
+
 def matches_gold(finding: dict, gold: dict) -> bool:
     if finding["file"] != gold["file"]:
         return False
@@ -88,8 +112,13 @@ def load_findings(path: Path) -> list[dict]:
 def build_clean_consensus(clean_trials: list[list[dict]]) -> list[dict]:
     """Return findings present in a strict majority of clean trials.
 
-    Matching uses the same file/category/line tolerance as seeded scoring. A
-    one-off clean hallucination is intentionally not allowed to hide a spiked FP.
+    Matching uses `same_finding` - the SAME relation used to exclude findings later.
+    Using the looser location-only key here would let one representative be elected
+    for a cluster of distinct findings and then reject its own cluster members at
+    exclusion time (seen for real: package.json dependency findings on lines 16/18/23
+    collapsed to one axios entry, after which the line-16 entries scored FP).
+
+    A one-off clean hallucination is intentionally not allowed to hide a spiked FP.
     """
     if len(clean_trials) < 3:
         raise ValueError("Can it nhat 3 clean trials de tao majority baseline.")
@@ -97,7 +126,7 @@ def build_clean_consensus(clean_trials: list[list[dict]]) -> list[dict]:
     candidates: list[dict] = []
     for trial in clean_trials:
         for finding in trial:
-            if not any(same_location_and_category(finding, item) for item in candidates):
+            if not any(same_finding(finding, item) for item in candidates):
                 candidates.append(finding)
 
     consensus: list[dict] = []
@@ -105,7 +134,7 @@ def build_clean_consensus(clean_trials: list[list[dict]]) -> list[dict]:
         present = sum(
             1
             for trial in clean_trials
-            if any(same_location_and_category(candidate, item) for item in trial)
+            if any(same_finding(candidate, item) for item in trial)
         )
         if present >= threshold:
             item = dict(candidate)
@@ -123,6 +152,14 @@ def score_trial(findings: list[dict], gold_items: list[dict], baseline: list[dic
     classifications: list[dict] = []
 
     for finding in findings:
+        # scoring_rules.md:62 + :74 - TP is "spiked ONLY"; a stable-clean finding
+        # is excluded from the seeded delta before gold is ever consulted.
+        if any(same_finding(finding, item) for item in baseline):
+            classifications.append(
+                {"class": "BASELINE", "reason": "clean_majority", "finding": finding["raw"]}
+            )
+            continue
+
         gold_matches = [gold for gold in gold_items if matches_gold(finding, gold)]
         available = [gold for gold in gold_matches if gold["id"] not in matched_gold]
         if available:
@@ -148,12 +185,7 @@ def score_trial(findings: list[dict], gold_items: list[dict], baseline: list[dic
             )
             continue
 
-        if any(same_location_and_category(finding, item) for item in baseline):
-            classifications.append(
-                {"class": "BASELINE", "reason": "clean_majority", "finding": finding["raw"]}
-            )
-        else:
-            classifications.append({"class": "FP", "reason": "unmatched", "finding": finding["raw"]})
+        classifications.append({"class": "FP", "reason": "unmatched", "finding": finding["raw"]})
 
     tp = sum(item["class"] == "TP" for item in classifications)
     fp = sum(item["class"] == "FP" for item in classifications)
