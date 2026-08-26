@@ -122,7 +122,7 @@ không xoá):
 Recall và coverage **không đổi ở mọi arm**; chỉ precision/FDR/F1 giảm nhẹ (0,8–2,8 pp)
 vì một số finding trước đây bị gộp nhầm vào baseline nay lộ ra là FP riêng. Hướng của
 cả hai kết luận vẫn giữ: thang model (pro > flash > baseline theo recall) và validator
-ON > OFF (recall +4,8 pp, precision +7,2 pp).
+ON > OFF (recall +4,8 pp, precision +7,6 pp theo scorer hiện tại).
 
 ⚠️ Con số 54,8% của x5-pro **trùng nhau trước và sau khi sửa** — KHÔNG được đọc thành
 "vậy là chẳng có gì sai". Có hai lỗi ngược chiều triệt tiêu nhau: thứ tự xét sai làm
@@ -156,6 +156,30 @@ spiked sẽ bị che. Ca thật: `gcm-no-tag-length` nổ ở clean tại `page-
 nên `aead-no-final` (chính là hệ quả của SEED-CRY-01) ở spiked bị loại thành baseline.
 Không thêm `rule_id` vào khoá vì finding của LLM không có rule_id — thêm vào sẽ tạo
 bất đối xứng giữa các arm, đúng loại lỗi mà amendment này vừa xoá.
+
+### Amendment 23/08/2026 — tái chấm toàn bộ số công bố bằng scorer hiện tại
+
+Sau hai sửa khoá baseline ở trên, mọi metric công bố phải lấy từ **cùng scorer hiện
+tại**, không lấy `score.json` lịch sử. Raw trials và `score.json` cũ được giữ nguyên;
+đầu ra tái chấm là derived evidence, không phải trial mới. Lệnh tái tạo offline:
+
+```powershell
+python ..\docs\giao-trinh\checks\reproduce_auditor_claims.py --claim cv-metrics
+```
+
+| Arm | Recall | Precision | FDR | F1 |
+|---|---:|---:|---:|---:|
+| baseline-v01 | 26.2% | 24.6% | 75.4% | 24.2% |
+| x5-flash | 45.2% | 59.3% | 40.7% | 50.8% |
+| x5-pro | 54.8% | 50.1% | 49.9% | 51.5% |
+| x6-on | 47.6% | 49.6% | 50.4% | 47.8% |
+| x6-off | 42.9% | 42.1% | 57.9% | 40.8% |
+| x4-commercial | 57.1% | 50.1% | 49.9% | 53.4% |
+
+Derived from unrounded means: X6 precision ON−OFF = **7.6 pp**; the observed
+repeated-control precision difference (x5-flash vs x6-on) = **9.6 pp**. One pair is
+not a stable noise-floor estimate, but 7.6 below that observed difference is enough
+to reject a strong precision-improvement interpretation at n=3.
 
 ## Snapshot giao cho auditor (chống leakage đáp án qua Git)
 Auditor KHÔNG được thấy lịch sử cấy lỗi. Sau khi cấy xong, xuất snapshot **không có `.git`**:

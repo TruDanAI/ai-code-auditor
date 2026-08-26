@@ -1,12 +1,13 @@
 # X4 commercial-v01 — Claude Code vs the seeded-bug benchmark
 
-**Run date:** 17/08/2026 · **Protocol:** `protocol-x4-commercial-baseline.md` (pre-registered, committed before any trial)
+**Run date:** 17/08/2026 · **Protocol:** `protocol-x4-commercial-baseline.md` (authored before the first trial; committed after)
 **Subject:** `claude-sonnet-5` via Claude Code headless (`claude -p`), read-only tools
 **Comparator:** `results-baseline-v01.md` (this repo's own agent, `gemini-2.5-flash-lite`)
 
 Same 15 seeds, same frozen gold, same `score_benchmark.py`, same ±5 line tolerance,
-same clean-majority differential. **No scorer or gold file was modified** — verified
-by a clean `git status` on both before scoring.
+same clean-majority differential. The raw trial outputs are preserved. Metrics below
+are replayed with the current scorer after the documented 22–23/08 baseline amendments;
+historical `score.json` files are not overwritten.
 
 ## Headline comparison (3 clean + 3 spiked trials each)
 
@@ -14,9 +15,9 @@ by a clean `git status` on both before scoring.
 |---|---|---|---|
 | In-scope recall (14 seeds) | 26.2% | **57.1%** (8/14) | **2.2×** |
 | End-to-end coverage (15 seeds) | 24.4% | **53.3%** (8/15) | 2.2× |
-| In-scope precision | 24.6% | **52.4%** | 2.1× |
-| In-scope FDR | 75.4% | **47.6%** | noise cut ~⅓ |
-| F1 (in-scope) | 24.2% | **54.6%** | 2.3× |
+| In-scope precision | 24.6% | **50.1%** | 2.0× |
+| In-scope FDR | 75.4% | **49.9%** | noise cut ~⅓ |
+| F1 (in-scope) | 24.2% | **53.4%** | 2.2× |
 | Cost per full audit (13 items) | **$0.08** | $6.43 | **80× more** |
 | Recall per dollar | **328 %/$** | 8.9 %/$ | 37× worse |
 
@@ -24,7 +25,7 @@ Both cost figures are *token count × list API price*, not invoices — the repo
 computes it in `agent.py`, Claude Code reports `total_cost_usd`. Same construction,
 so the ratio is apples-to-apples.
 
-## Difficulty gradient — the pre-registered question
+## Difficulty gradient — the authored-before-trial question
 
 | Difficulty | This repo's agent | Claude Code | Gap |
 |---|---|---|---|
@@ -35,17 +36,18 @@ so the ratio is apples-to-apples.
 Claude Code's numbers were **identical in all three trials** (recall min = max = 57.1%,
 and the same 8 seeds matched every time). The repo agent varied 21.4–28.6%.
 
-### Verdicts on the pre-registered hypotheses
+### Verdicts on the authored-before-trial hypotheses
 
 | ID | Prediction | Result |
 |---|---|---|
 | **H1** | Claude recall > 26.2% | ✅ **confirmed** — 57.1% |
 | **H2** | Gradient persists (`de` > `vua` > `kho`) | ✅ **confirmed** — 100% > 60% > 33% |
 | **H3** | Gap concentrates in `de`/`vua`, not `kho` (falsified if `kho` ≥ 50%) | ✅ **not falsified** — `kho` = 33%, and it is where the smallest gain and the largest residual failure sit |
-| **H4** | FDR < 75.4% | ✅ **confirmed** — 47.6% |
+| **H4** | FDR < 75.4% | ✅ **confirmed** — 49.9% |
 
-**The author's pre-registered prediction ("Claude will win") was correct.** Recorded
-17/08/2026 before any trial ran.
+**The authored-before-trial prediction ("Claude will win") matched the result.** The
+protocol was committed after the run, so Git does not support calling X4 a full
+pre-registration.
 
 But the interesting part is what winning did *not* buy: `de` is solved (100%), `vua`
 is where the money went (+40 pts), and **`kho` remains mostly unsolved — 4 of 6
@@ -98,7 +100,7 @@ of them.
 | `core/webhook.js:527` | crypto | 2/3 |
 | `core/messenger-client.js:43` | error-handling | 2/3 |
 
-Even at 47.6% FDR, roughly **one in two Claude Code findings is not a seeded defect**.
+Even at 49.9% FDR, roughly **one in two Claude Code findings is not a seeded defect**.
 Lower noise than the repo agent, not low noise.
 
 ## Failure modes observed

@@ -3,18 +3,19 @@
 **Ngày chạy:** 20/08/2026 · **Protocol:** `protocol-x5-model-ladder.md`
 (commit `4f74da5`, **11:56:10 — trước trial đầu tiên**, git chứng minh được thứ tự)
 
-Cùng 15 seed, cùng gold, cùng `score_benchmark.py` không sửa, cùng snapshot,
-tolerance ±5, clean-majority differential. `agent.py` **không đổi một dòng logic**;
-`MODEL` đọc từ env nên hash code giống hệt nhau ở cả ba arm.
+Cùng 15 seed, cùng gold, cùng snapshot, tolerance ±5, clean-majority differential.
+`agent.py` **không đổi một dòng logic**; `MODEL` đọc từ env nên hash code giống hệt
+nhau ở cả ba arm. Raw trials được giữ nguyên; bảng metric được tái chấm bằng scorer
+hiện tại sau các amendment baseline 22–23/08.
 
 ## Kết quả
 
 | Metric | lite (baseline) | flash | **pro** | Claude Code (X4) |
 |---|---|---|---|---|
 | In-scope recall | 26.2% | 45.2% | **54.8%** | 57.1% |
-| In-scope precision | 24.6% | **61.1%** | 53.8% | 52.4% |
-| In-scope FDR | 75.4% | **38.9%** | 46.2% | 47.6% |
-| F1 | 24.2% | 51.4% | 53.3% | 54.6% |
+| In-scope precision | 24.6% | **59.3%** | 50.1% | 50.1% |
+| In-scope FDR | 75.4% | **40.7%** | 49.9% | 49.9% |
+| F1 | 24.2% | 50.8% | 51.5% | 53.4% |
 | $/lượt audit | $0.08 | $0.26 | $1.59 | $6.43 |
 | Recall trên mỗi đô | **328 %/$** | 174 %/$ | 34 %/$ | 8.9 %/$ |
 | Seed bắt được (union 3 trial) | — | 8/14 | **9/14** | 8/14 |
@@ -31,7 +32,8 @@ Chi phí thật: flash $1.56 · pro $9.56 (trần đăng ký trước $25).
 | **H4** | recall(pro) < 40% → harness là nút thắt | ✗ không kích hoạt |
 | **H5** | Gradient `de` > `vua` > `kho` còn nguyên | ✅ mọi arm |
 
-**Dự đoán đăng ký trước của tác giả — "khoảng cách chủ yếu do model" — được xác nhận.**
+**Decision rule H3 đăng ký trước đã kích hoạt.** Đây là bằng chứng về độ nhạy theo
+model trong cùng harness, không phải phép cô lập nguyên nhân của chênh lệch với X4.
 
 ## Ba phát hiện
 
@@ -40,9 +42,9 @@ Chi phí thật: flash $1.56 · pro $9.56 (trần đăng ký trước $25).
 `agent.py` + `gemini-2.5-pro` đạt **54.8%**, so với Claude Code **57.1%** — cách nhau
 **2,3 điểm**, ở chi phí **thấp hơn 4 lần** ($1.59 vs $6.43).
 
-Ba tool (`grep`/`read_file`/`list_files`), `max_steps=10`, một validator, không
-framework — **không phải nút thắt**. Đây là kết luận về công trình của tác giả, không
-phải về nhà cung cấp model.
+Ba tool (`grep`/`read_file`/`list_files`), `max_steps=10` và validator được giữ nguyên,
+nên X5 cô lập được biến model **trong harness của tác giả**. Nó không chứng minh harness
+không phải nút thắt khi so với X4, vì X4 khác nhiều trục ngoài model.
 
 ### 2. `pro` bắt được một seed Claude Code chưa từng bắt
 
@@ -55,18 +57,18 @@ tìm thấy một lỗi mà agent thương mại bỏ sót.
 ### 3. Precision **không** tăng theo sức model — nó đạt đỉnh ở `flash`
 
 ```
-precision:  24.6%  →  61.1%  →  53.8%
+precision:  24.6%  →  59.3%  →  50.1%
               lite     flash     pro
 ```
 
 `flash` có precision **cao nhất trong cả bốn arm**, kể cả cao hơn Claude Code
-(61.1% vs 52.4%), và FDR thấp nhất (38.9%).
+(59.3% vs 50.1%), và FDR thấp nhất (40.7%).
 
-`pro` mua thêm 9,6 điểm recall bằng **6 lần chi phí** và **mất 7,3 điểm precision**.
+`pro` mua thêm 9,6 điểm recall bằng **6 lần chi phí** và **mất 9,2 điểm precision**.
 Model mạnh hơn tìm được nhiều hơn, nhưng cũng ồn hơn.
 
 → **`flash` là điểm ngọt về hiệu quả.** Nếu tối ưu F1 trên mỗi đô, không có arm nào
-gần nó: F1 51.4% ở $0.26.
+gần nó: F1 50.8% ở $0.26.
 
 ## Năm seed không arm nào bắt được
 
@@ -82,15 +84,16 @@ Hai seed cuối là `vua`, không phải `kho` — chúng kháng vì **lý do kh
 luận**. `CFG-01` đòi agent nhận ra *thứ lẽ ra phải có mà không có*. Không tầng model
 nào giải được bài toán vắng mặt, và đó là một nhánh riêng trong failure taxonomy.
 
-## Phân rã: model cho recall, harness cho precision
+## Phân rã sau X6: model cho recall; validator không có claim precision
 
 | Nguồn | Bằng chứng |
 |---|---|
 | **Model → recall** | Giữ harness cố định, đổi model: 26.2 → 45.2 → 54.8 |
-| **Harness → precision** | Cùng hạng model, `agent.py` cho precision cao hơn Claude Code (61.1/53.8 vs 52.4). Giả thuyết: `validate_report` ép evidence khớp nguyên văn dòng code, đội ngược finding bịa. Chưa cô lập bằng ablation — **là suy luận, chưa phải kết luận đo được**. |
+| **Validator → precision** | X6 đã cô lập validator: effect precision 7.6 pp nhưng chênh repeated-control quan sát là 9.6 pp. **Không có kết luận precision.** |
 
-Ablation để xác nhận: chạy `agent.py` với `validate_report` bị tắt, cùng model.
-Chưa chạy.
+X6 đồng thời đo được một invariant hẹp hơn: trong raw output đã quan sát, citation bịa
+là 0/145 khi ON và 4/77 khi OFF. Vì terminal fallback có thể trả JSON vẫn lỗi sau hai
+lần bị từ chối, không được diễn đạt invariant này như bảo đảm tuyệt đối trên mọi exit.
 
 ## Giới hạn
 
@@ -105,8 +108,8 @@ là dữ liệu lịch sử, không tái lập được bằng API.
 
 ## Việc tiếp theo (chưa chạy, phải đăng ký trước)
 
-- **Ablation validator** — cùng model, tắt `validate_report`. Xác nhận hay bác bỏ
-  "harness → precision". Đây là thí nghiệm rẻ nhất và có giá trị nhất còn lại.
+- **X6b** — lặp control đủ nhiều để ước lượng variance trước, rồi mới power/đăng ký
+  ablation validator với n phù hợp.
 - **Arm D** — Claude Code thả hết xích (full tool, không trần budget). Đo trần thật
   của công cụ thương mại.
 - **Arm mở** — Kimi K3 / DeepSeek qua adapter. Trả lời "hệ thống có bị khoá vendor không".

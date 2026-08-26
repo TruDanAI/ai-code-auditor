@@ -1,6 +1,6 @@
 # STATUS — AI Code Auditor
 
-**Cập nhật:** 17/08/2026  
+**Cập nhật:** 23/08/2026
 **Milestone:** X6 — Ablation validator ĐÃ CHẠY. Claim "harness → precision" đã được đính chính.  
 **Chế độ mặc định hiện tại:** MENTOR MODE cho mutation có bài học; BUILD MODE cho
 scorer/runner/test cơ học sau khi contract đã được giải thích.
@@ -30,7 +30,7 @@ scorer/runner/test cơ học sau khi contract đã được giải thích.
 - Differential hoạt động đúng: `session.js:55` [auth] bị flag ở 3/3 CLEAN trial =
   noise nền, bị loại. AUTH-02 (đúng line 169) cũng bị flag ở clean (2/3) → tính
   MISS đúng, không ăn điểm may. Đây là bằng chứng mạnh nhất vì sao cần clean-vs-spiked.
-- Offline tests vẫn xanh: 9/9 benchmark unit tests, citation validator 6/6.
+- Offline tests vẫn xanh: 14/14 benchmark unit tests, citation validator 6/6.
 
 ## X6 — Ablation `validate_report` (21/08/2026)
 
@@ -39,31 +39,33 @@ Chi tiết: `benchmark/results-x6-validator-ablation.md`. Protocol `8792ae4` com
 
 | Metric | ON | OFF | Δ |
 |---|---|---|---|
-| recall | 47.6% | 42.9% | −4,7 |
-| precision | 50.4% | 43.6% | −6,8 |
+| recall | 47.6% | 42.9% | −4,8 |
+| precision | 49.6% | 42.1% | −7,6 |
 | **finding bịa** | **0.0%** (0/145) | **5.2%** (4/77) | **+5,2** |
 
-- **H2 KHÔNG kích hoạt** (cần ≥10 điểm, thực tế 6,8) → rơi vùng xám: cổng đóng góp
-  **một phần**, không phải nguyên nhân chính. H5 kích hoạt. H1, H4 đúng.
-- **Sàn nhiễu lớn hơn hiệu ứng.** Chạy lại control thay vì tái dùng X5-flash cho thấy
-  cùng hành vi code lệch **10,7 điểm** precision giữa hai lần chạy (61.1 → 50.4).
-  Hiệu ứng 6,8 < nhiễu 10,7 → **không được tuyên bố**. Ngưỡng H2 đăng ký khi chưa
-  biết sàn nhiễu; giữ nguyên, ghi nhận là lỗi thiết kế của protocol.
+- **H2 KHÔNG kích hoạt** (cần ≥10 điểm, thực tế 7,6) → rơi vùng xám; không đủ bằng
+  chứng để nhận precision improvement. H5 kích hoạt. H1, H4 đúng.
+- **Chênh repeated-control lớn hơn effect.** Chạy lại control thay vì tái dùng X5-flash cho thấy
+  cùng hành vi code lệch **9,6 điểm** precision giữa hai lần chạy (59.3 → 49.6).
+  Hiệu ứng 7,6 < chênh control 9,6 → **không được tuyên bố**. Một cặp control chưa
+  phải noise-floor estimate vững; ngưỡng H2 vẫn được giữ nguyên như đã đăng ký.
 - **Cổng chỉ nổ 7/78 lượt (~9%)** — 5 đội ngược + 2 chặn "chưa read_file". Một cổng
   nổ 9% không thể là động lực chính của metric.
 - **Trần của cổng có số:** `x6-on/clean-trial-03` nộp 75 finding, **70 cái cùng
   `auth` trong một file, trên snapshot SẠCH**, và **qua hết** validator vì dòng có
-  thật + evidence khớp. Cổng bảo đảm trích dẫn có thật, KHÔNG bảo đảm finding có nghĩa.
+  thật + evidence khớp. Cổng chỉ kiểm được trích dẫn có thật, KHÔNG bảo đảm finding có nghĩa.
 
 **ĐÍNH CHÍNH — cách nói đúng từ đây:**
 
 | Claim | Trạng thái |
 |---|---|
 | Validator đẩy metric precision lên | ❌ không chứng minh được ở n=3 |
-| Validator đưa trích dẫn bịa về 0 | ✅ đo được cơ học, 5.2% → 0.0% |
+| Validator cho 0 citation bịa trong raw output arm ON | ✅ đo được cơ học, 5.2% → 0.0% |
 
-> `validate_report` là **bảo đảm tính có thật của trích dẫn**, không phải máy nâng
-> precision. Nó xoá một *lớp lỗi*, không cải thiện *phán đoán*.
+> Trong các output X6 ON đã đo, `validate_report` đưa citation bịa về 0; nó không phải
+> máy nâng precision. Cửa submit bình thường chỉ nhận report PASS, nhưng fallback cuối
+> sau hai lần bị từ chối vẫn trả JSON kèm cảnh báo để tránh deadlock; vì vậy đây không
+> phải bảo đảm tuyệt đối trên mọi đường thoát terminal.
 
 Sự cố: arm OFF lần 1 bị giết từ bên ngoài lúc 03:39 → §7 phân loại **hạ tầng, không
 phải dữ liệu**, giữ lại `x6-off-aborted-01` (không chấm), chạy lại. Tổng $3.5629/$8.
@@ -76,16 +78,17 @@ Chi tiết: `benchmark/results-x5-model-ladder.md`. Protocol `4f74da5` commit 11
 | Metric | lite | flash | pro | Claude X4 |
 |---|---|---|---|---|
 | recall | 26.2% | 45.2% | **54.8%** | 57.1% |
-| precision | 24.6% | **61.1%** | 53.8% | 52.4% |
-| FDR | 75.4% | **38.9%** | 46.2% | 47.6% |
+| precision | 24.6% | **59.3%** | 50.1% | 50.1% |
+| FDR | 75.4% | **40.7%** | 49.9% | 49.9% |
 | $/audit | $0.08 | $0.26 | $1.59 | $6.43 |
 
-- **H3 kích hoạt** (recall(pro) ≥ 50%): khoảng cách X4 **chủ yếu do MODEL**. Harness
-  3-tool + validator **không phải nút thắt**. Dự đoán đăng ký trước của tác giả đúng.
+- **Luật H3 đăng ký trước đã kích hoạt** (recall(pro) ≥ 50%): X5 chứng minh recall
+  nhạy với model **bên trong cùng harness**. Không diễn giải thành nguyên nhân của
+  khoảng cách với X4, vì X4 còn khác model, tool behavior và execution environment.
 - `agent.py`+pro cách Claude Code **2,3 điểm** ở chi phí **thấp hơn 4×**.
 - `agent.py`+pro bắt được **SEED-REL-01** mà Claude Code trượt cả 3 trial (union 9/14 vs 8/14).
-- **Precision đạt đỉnh ở `flash` rồi TỤT ở `pro`** (61.1 → 53.8). Model mạnh hơn tìm
-  nhiều hơn nhưng ồn hơn. `flash` là điểm ngọt hiệu quả: F1 51.4% ở $0.26.
+- **Precision đạt đỉnh ở `flash` rồi TỤT ở `pro`** (59.3 → 50.1). Model mạnh hơn tìm
+  nhiều hơn nhưng ồn hơn. `flash` là điểm ngọt hiệu quả: F1 50.8% ở $0.26.
 - 5 seed không arm nào bắt: AUTH-01, CRY-01, INP-02 (lỗ hổng checklist), **CFG-01 và
   DOC-01 là `vua`** — chúng kháng vì đòi phát hiện **SỰ VẮNG MẶT**, một nhánh riêng
   trong failure taxonomy, không phải vì độ khó suy luận.
@@ -103,7 +106,7 @@ Chi tiết: `benchmark/results-x4-commercial-v01.md`. Protocol: `benchmark/proto
 - 3 clean + 3 spiked trial, `claude-sonnet-5` qua `claude -p` headless, cwd = bản sao
   snapshot ở thư mục trung lập (không CLAUDE.md cha, không `.git`, không gold).
 - Scorer + gold **KHÔNG sửa** (`git status` sạch trước khi chấm).
-- **Recall 57.1% (8/14), precision 52.4%, FDR 47.6%, F1 54.6%** — giống hệt ở cả 3 trial.
+- **Recall 57.1% (8/14), precision 50.1%, FDR 49.9%, F1 53.4%** — recall giống hệt ở cả 3 trial.
 - Gradient: `de` **100%** → `vua` **60%** → `kho` **33%**. Agent repo: 67 → 20 → 11.
 - Chi phí $6.43/lượt audit vs $0.08 của agent repo = **80×**. Recall/đô: agent repo thắng 37×.
 - SEED-AUTH-02: agent repo MISS (flag cả trên clean), Claude HIT (không có trong clean
