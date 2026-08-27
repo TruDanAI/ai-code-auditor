@@ -1,7 +1,7 @@
 # X6 — Ablation `validate_report`
 
 **Ngày chạy:** 21/08/2026 · **Protocol:** `protocol-x6-validator-ablation.md`
-(commit `8792ae4`, **01:08:23 — trước trial đầu tiên**; arm ON khởi động 01:09:12)
+(commit `b77929f`, **01:08:23 — trước trial đầu tiên**; arm ON khởi động 01:09:12)
 
 Cùng model `gemini-2.5-flash`, cùng 15 seed, cùng gold, cùng snapshot, tolerance
 ±5, clean-majority differential **tính riêng từng arm**. Raw trials và historical

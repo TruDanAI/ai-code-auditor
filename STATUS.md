@@ -8,7 +8,7 @@ scorer/runner/test cơ học sau khi contract đã được giải thích.
 ## Trạng thái đã kiểm chứng (14/08/2026)
 
 - Commit `ai-code-auditor` gần nhất: gold finalized (188 dòng) sau
-  `66fdeaf` (freeze 15/15). `benchmark/` GIỜ ĐÃ được track trong git.
+  `eb91b75` (freeze 15/15). `benchmark/` GIỜ ĐÃ được track trong git.
 - **15/15 mutation đã cấy xong** trên `chatbot-fanpage-spiked` branch `spiked`
   (HEAD `c255f13`). 3 seed cuối (DOC-01, OOC-01, DEP-01) mỗi seed 1 commit + 1
   validity check bằng code thật.
@@ -34,7 +34,7 @@ scorer/runner/test cơ học sau khi contract đã được giải thích.
 
 ## X6 — Ablation `validate_report` (21/08/2026)
 
-Chi tiết: `benchmark/results-x6-validator-ablation.md`. Protocol `8792ae4` commit
+Chi tiết: `benchmark/results-x6-validator-ablation.md`. Protocol `b77929f` commit
 01:08:23, **trước trial đầu tiên** (arm ON khởi động 01:09:12).
 
 | Metric | ON | OFF | Δ |
@@ -72,7 +72,7 @@ phải dữ liệu**, giữ lại `x6-off-aborted-01` (không chấm), chạy l�
 
 ## X5 — Model ladder, harness bất biến (20/08/2026)
 
-Chi tiết: `benchmark/results-x5-model-ladder.md`. Protocol `4f74da5` commit 11:56:10,
+Chi tiết: `benchmark/results-x5-model-ladder.md`. Protocol `06c252b` commit 11:56:10,
 **trước trial đầu tiên** — git chứng minh được thứ tự (sửa lỗi quy trình của X4).
 
 | Metric | lite | flash | pro | Claude X4 |

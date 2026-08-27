@@ -56,7 +56,7 @@ off to 0.0% (0/145) with it on.**
 
 Every experiment here has a `protocol-*.md` committed before its first run, with the
 hypotheses and rejection thresholds written down in advance. Git proves the ordering —
-for example X5's protocol is commit `4f74da5` at 11:56:10, before any trial started.
+for example X5's protocol is commit `06c252b` at 11:56:10, before any trial started.
 
 This is not ceremony. Choosing a threshold after seeing the numbers means you will
 always find one that makes the result look good. Fixing it first is the only reason

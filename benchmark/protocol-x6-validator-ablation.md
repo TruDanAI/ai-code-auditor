@@ -6,7 +6,7 @@
 ## 0. Pre-registration
 
 Khác X5 (nơi dự đoán được chép vào protocol), lần này **dự đoán đã nằm sẵn trong git
-từ trước**. `STATUS.md` tại commit `5aeb03a` (20/08/2026) ghi:
+từ trước**. `STATUS.md` tại commit `1461c3f` (20/08/2026) ghi:
 
 > **Phân rã giả định:** model → recall; harness → precision. Vế sau CHƯA đo được —
 > cần ablation tắt `validate_report`.

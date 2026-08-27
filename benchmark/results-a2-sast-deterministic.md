@@ -4,7 +4,7 @@ Mốc so sánh mà mọi bài báo agentic-security đều có và dự án này
 Chạy **offline, $0, 0 lượt gọi LLM**, chấm bằng **đúng scorer** và đúng protocol
 differential như các arm LLM.
 
-Runner: `run_deterministic_arm.py` (commit `4ea393c`, **trước** khi chấm — git chứng
+Runner: `run_deterministic_arm.py` (commit `05ce5c4`, **trước** khi chấm — git chứng
 minh được thứ tự, đúng bài học rút ra từ X4).
 
 ## Cấu hình đã khai báo trước

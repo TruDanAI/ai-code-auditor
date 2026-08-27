@@ -1,6 +1,6 @@
 # X7 — Kết quả: `grep --context` làm auditor **tệ đi**. Phản chứng đăng ký trước đã kích hoạt.
 
-Chạy 23/08/2026. Protocol `28ac847`/`7711172`, commit **trước** trial đầu tiên.
+Chạy 23/08/2026. Protocol `c306427`/`88133d4`, commit **trước** trial đầu tiên.
 6/6 trial hoàn tất, **$1,9538 / trần $3,00**, chốt chi không phải kích hoạt.
 
 ## Phán quyết theo giả thuyết đã đăng ký

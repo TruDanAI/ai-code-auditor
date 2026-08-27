@@ -1,7 +1,7 @@
 # X5 model ladder — harness bất biến, chỉ đổi model
 
 **Ngày chạy:** 20/08/2026 · **Protocol:** `protocol-x5-model-ladder.md`
-(commit `4f74da5`, **11:56:10 — trước trial đầu tiên**, git chứng minh được thứ tự)
+(commit `06c252b`, **11:56:10 — trước trial đầu tiên**, git chứng minh được thứ tự)
 
 Cùng 15 seed, cùng gold, cùng snapshot, tolerance ±5, clean-majority differential.
 `agent.py` **không đổi một dòng logic**; `MODEL` đọc từ env nên hash code giống hệt
